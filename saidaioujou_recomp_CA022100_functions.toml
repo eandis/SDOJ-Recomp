@@ -1,0 +1,5 @@
+# Dynamic entrypoints observed inside the CA022100 alternate-mode module.
+
+# Reached while returning from the alternate mode to the main menu.
+[functions."0x88094460"]
+name = "sub_88094460"

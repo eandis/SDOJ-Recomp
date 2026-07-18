@@ -1,0 +1,5 @@
+# Dynamic entrypoints observed inside the CA022110 gameplay module.
+
+# Reached while leaving character/gameplay selection and returning to menu.
+[functions."0x88095350"]
+name = "sub_88095350"

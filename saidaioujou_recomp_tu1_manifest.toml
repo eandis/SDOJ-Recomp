@@ -1,0 +1,25 @@
+
+
+[project]
+name = "saidaioujou_recomp_tu1"
+sdk_version = "0.8.1.4"
+game_root = "../disc_tu1"
+
+[entrypoint]
+file_path = "../disc_tu1/default.xex"
+out_directory_path = "generated/default"
+includes = ["saidaioujou_recomp_functions.toml"]
+
+
+[[modules]]
+guest_path = "CA022110.bin"
+file_path = "../disc_tu1/CA022110.bin"
+out_directory_path = "generated/CA022110"
+includes = ["saidaioujou_recomp_CA022110_functions.toml"]
+
+
+[[modules]]
+guest_path = "CA022100.bin"
+file_path = "../disc_tu1/CA022100.bin"
+out_directory_path = "generated/CA022100"
+includes = ["saidaioujou_recomp_CA022100_functions.toml"]

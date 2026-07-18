@@ -1,0 +1,17 @@
+/out/
+/dumps_tu1/
+/disc_tu1/
+/thirdparty/rexglue-sdk/out/
+
+*.log
+*.xex
+*.iso
+*.bin
+*.pdb
+*.ilk
+*.obj
+
+CMakeUserPresets.json
+.vs/
+.vscode/
+.idea/
