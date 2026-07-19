@@ -46,7 +46,7 @@ The saved settings are stored in the saidaioujou_recomp_tu1.toml config file.
 
 The input lag fix (reduction from 3f to 1f) consists of 2 patches:
 
-- The first patch refreshes gameplay input right before the game builds its input mask, instead of using stale input from the previous update.
+- The first patch polls the controller again and rebuilds the gameplay input mask right before the game copies it, instead of using the stale mask.
 - The second patch runs the game's render callback batch earlier, waits for the buffer swap, and skips the original late calls. This saves another frame.
 
 The patches for both Normal and Arrange modes are in:

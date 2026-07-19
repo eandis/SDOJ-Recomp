@@ -1,12 +1,127 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
 
+#include <array>
 #include <atomic>
 
 uint32_t late_render_calls_to_skip = 0;
 std::atomic<bool> buffer_swapped_early{false};
-std::atomic<bool> input_refresh_pending{false};
-constexpr uint32_t kInputOnlyCallMarker = 0x88051DB5;
+
+namespace {
+
+struct GameplayPad {
+	int8_t status = -1;
+	uint16_t buttons = 0;
+	uint8_t triggers[2]{};
+	int16_t sticks[4]{};
+};
+
+bool PollGameplayPad(PPCContext& ctx, uint8_t* base, uint32_t port,
+		uint32_t return_address, GameplayPad& pad) {
+	if (pad.status >= 0) return pad.status != 0;
+
+	const uint32_t state = (ctx.r1.u32 - 64) & ~uint32_t{15};
+	ctx.r3.u64 = port;
+	ctx.r4.u64 = state;
+	ctx.lr = return_address;
+	REX_CALL_INDIRECT_FUNC(0x822169E0);
+	pad.status = ctx.r3.u32 == 0;
+	if (!pad.status) return false;
+
+	pad.buttons = REX_LOAD_U16(state + 4);
+	pad.triggers[0] = REX_LOAD_U8(state + 6);
+	pad.triggers[1] = REX_LOAD_U8(state + 7);
+	for (uint32_t i = 0; i < 4; ++i) {
+		pad.sticks[i] = static_cast<int16_t>(REX_LOAD_U16(state + 8 + i * 2));
+	}
+	return true;
+}
+
+int32_t ReadPadControl(uint32_t binding, const GameplayPad& pad) {
+	const uint32_t control = binding & 0xFFu;
+	static constexpr uint16_t buttons[] = {
+		0x0001, 0x0002, 0x0004, 0x0008, 0x0010,
+		0x0020, 0x0040, 0x0080, 0x0100, 0x0200,
+	};
+	if (control <= 10) {
+		return (pad.buttons & buttons[control - 1]) != 0;
+	}
+	if (control <= 12) return pad.triggers[control - 11];
+	if (control <= 16) return pad.sticks[control - 13];
+	return (pad.buttons & (0x1000u << (control - 17))) != 0;
+}
+
+int32_t ReadGameplayAction(PPCContext& ctx, uint8_t* base,
+		uint32_t input_manager, uint32_t player, uint32_t action_id,
+		uint32_t return_address, std::array<GameplayPad, 4>& pads) {
+	constexpr uint32_t player_stride = 1272;
+	constexpr uint32_t binding_stride = 40;
+	constexpr uint32_t action_stride = 36;
+
+	const uint32_t player_data = input_manager + 14956 + player * player_stride;
+	const uint32_t bindings = REX_LOAD_U32(player_data + 100);
+	const uint32_t binding_count = REX_LOAD_U32(player_data + 104);
+	const uint32_t actions = REX_LOAD_U32(player_data + 212);
+
+	for (uint32_t i = 0; i < binding_count; ++i) {
+		const uint32_t binding_data = bindings + i * binding_stride;
+		if (REX_LOAD_U32(binding_data) != action_id) continue;
+		const uint32_t binding = REX_LOAD_U32(binding_data + 4);
+		if ((binding >> 8) == 0x10000 &&
+			PollGameplayPad(ctx, base, player, return_address, pads[player])) {
+			return ReadPadControl(binding, pads[player]);
+		}
+		return static_cast<int32_t>(REX_LOAD_U32(actions + i * action_stride + 8));
+	}
+	return 0;
+}
+
+// poll again
+void RefreshGameplayInput(PPCContext& ctx, uint8_t* base,
+		uint32_t input_manager, uint32_t config_slot,
+		uint32_t gameplay_input, uint32_t return_address) {
+	const uint32_t config = REX_LOAD_U32(config_slot);
+	if (input_manager == 0 || config == 0) return;
+
+	const PPCContext saved_ctx = ctx;
+	std::array<GameplayPad, 4> pads{};
+	for (uint32_t gameplay_player = 0; gameplay_player < 2; ++gameplay_player) {
+		const uint32_t player =
+			REX_LOAD_U32(config + 380 + gameplay_player * 4);
+		if (player >= 4) continue;
+		const uint32_t fixed_actions = 27 + gameplay_player * 13;
+		const uint32_t player_config = config + gameplay_player * 64;
+		const auto action = [&](uint32_t action_player, uint32_t id) {
+			return ReadGameplayAction(ctx, base, input_manager, action_player,
+				id, return_address, pads);
+		};
+		const auto configured = [&](uint32_t offset) {
+			return action(player, REX_LOAD_U32(player_config + offset)) != 0;
+		};
+
+		uint32_t mask = 0;
+		if (action(player, 20) || action(0, fixed_actions) ||
+			action(player, 0) || action(player, 13) >= 9000) mask |= 0x01;
+		if (action(0, fixed_actions + 1) || action(player, 1) ||
+			action(player, 13) <= -9000) mask |= 0x02;
+		if (action(0, fixed_actions + 2) || action(player, 2) ||
+			action(player, 12) <= -9000) mask |= 0x04;
+		if (action(player, 21) || action(0, fixed_actions + 3) ||
+			action(player, 3) || action(player, 12) >= 9000) mask |= 0x08;
+		if (configured(152) || action(0, fixed_actions + 4) || configured(120)) mask |= 0x10;
+		if (configured(156) || action(0, fixed_actions + 5) || configured(124)) mask |= 0x20;
+		if (configured(160) || action(0, fixed_actions + 6) || configured(128)) mask |= 0x40;
+		if (configured(164) || action(0, fixed_actions + 7) ||
+			configured(132) || action(player, 5)) mask |= 0x80;
+
+		const uint32_t pending = gameplay_input + (gameplay_player == 0 ? 12 : 172);
+		REX_STORE_U32(pending, (REX_LOAD_U32(pending) & ~uint32_t{0xFF}) | mask);
+	}
+	ctx = saved_ctx;
+	ctx.fpscr.setcsr(ctx.fpscr.csr);
+}
+
+}
 
 // original: sub_88051308
 DEFINE_REX_FUNC(ArrangeRenderCallback) {
@@ -27,12 +142,8 @@ DEFINE_REX_FUNC(ArrangeRenderCallback) {
 	REX_STORE_U32(ea, ctx.r1.u32);
 	ctx.r1.u32 = ea;
 	// bl 0x880342d8
-	// don't build the gameplay mask from old input.
-	if (!input_refresh_pending.load(
-			std::memory_order_acquire)) {
 	ctx.lr = 0x8805131C;
 	BuildInputMasks(ctx, base);
-	}
 	// lis r11,-30584
 	ctx.r11.s64 = -2004353024;
 	// lwz r11,5848(r11)
@@ -1419,26 +1530,11 @@ loc_88051D30:
 	// bl 0x880358c0
 	ctx.lr = 0x88051D3C;
 	sub_880358C0(ctx, base);
-	// refresh the game's input, then rebuild the gameplay mask.
-	if (input_refresh_pending.exchange(
-			false, std::memory_order_acq_rel)) {
-		const PPCContext saved_cpu_state = ctx;
-		const uint32_t input_object = REX_LOAD_U32(0x88881720);
-		const uint32_t input_manager =
-			input_object ? REX_LOAD_U32(input_object + 588) : 0;
-		if (input_manager != 0) {
-			ctx.r3.u64 = input_manager;
-			ctx.lr = 0x88051D3C;
-			REX_CALL_INDIRECT_FUNC(0x821797A0);
-			ctx.r3.u64 = input_object;
-			ctx.lr = kInputOnlyCallMarker;
-			sub_88044960(ctx, base);
-		}
-		ctx.lr = 0x88051D3C;
-		BuildInputMasks(ctx, base);
-		ctx = saved_cpu_state;
-		ctx.fpscr.setcsr(ctx.fpscr.csr);
-	}
+	const uint32_t input_object = REX_LOAD_U32(0x88881720);
+	const uint32_t input_manager =
+		input_object ? REX_LOAD_U32(input_object + 588) : 0;
+	RefreshGameplayInput(ctx, base, input_manager,
+		0x88881724, 0x8887D838, 0x88051D3C);
 	// li r10,2
 	ctx.r10.s64 = 2;
 	// mr r11,r25

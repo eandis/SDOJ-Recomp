@@ -6,8 +6,6 @@
 #include <thread>
 
 extern uint32_t late_render_calls_to_skip;
-extern std::atomic<bool> input_refresh_pending;
-constexpr uint32_t kInputOnlyCallMarker = 0x88051DB5;
 
 namespace {
 
@@ -1963,10 +1961,6 @@ DEFINE_REX_FUNC(RunRenderFrame) {
 	uint32_t old_buffer_swap_count = 0;
 	if (is_early_render_call && late_render_calls_to_skip != 0) {
 		return;
-	}
-	if (is_early_render_call) {
-		// this early gameplay call needs fresh input.
-		input_refresh_pending.store(true, std::memory_order_release);
 	}
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
@@ -46145,8 +46139,6 @@ DEFINE_REX_FUNC(sub_88044960) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
 	uint32_t ea{};
-	const bool is_input_only_call =
-		ctx.lr == kInputOnlyCallMarker;
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x88048464
@@ -47344,14 +47336,6 @@ loc_880451E8:
 	// stb r8,71(r22)
 	REX_STORE_U8(ctx.r22.u32 + 71, ctx.r8.u8);
 loc_88045204:
-	if (is_input_only_call) {
-		// input is fresh now. skip the rest of the gameplay update.
-		ctx.r1.s64 = ctx.r1.s64 + 256;
-		ctx.r12.s64 = ctx.r1.s64 + -112;
-		__restfpr_28(ctx, base);
-		__restgprlr_19(ctx, base);
-		return;
-	}
 	// mr r3,r22
 	ctx.r3.u64 = ctx.r22.u64;
 	// bl 0x880386f0

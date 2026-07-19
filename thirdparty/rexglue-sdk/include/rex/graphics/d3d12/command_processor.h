@@ -228,7 +228,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void InitializeTrace() override;
 
  private:
-  static constexpr uint32_t kQueueFrames = 1;
+  static constexpr uint32_t kQueueFrames = 3;
 
   enum RootParameter : UINT {
     // Keep the size of the root signature at each stage 13 dwords or less

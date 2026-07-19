@@ -70951,14 +70951,11 @@ loc_8217F650:
 	// only gameplay uses the early render call. menus stay untouched.
 	early_render_calls =
 		ctx.r31.u32 != 0 ? GetRenderCalls(base) : 0;
-	// gameplay refreshes input later. menus still use this call.
-	if (early_render_calls == 0) {
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;
 	// bl 0x821797a0
 	ctx.lr = 0x8217F658;
 	UpdateInputs(ctx, base);
-	}
 	if (early_render_calls != 0) {
 		const PPCContext saved_cpu_state = ctx;
 		for (uint32_t call_index = 0;

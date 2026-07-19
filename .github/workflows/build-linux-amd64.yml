@@ -1,0 +1,40 @@
+name: Build Linux AMD64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config libgtk-3-dev wget
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+
+      - name: Configure
+        run: cmake --preset linux-amd64-release
+
+      - name: Build
+        run: cmake --build --preset linux-amd64-release --parallel 4
+
+      - name: Collect release files
+        run: |
+          mkdir linux-amd64-release
+          find out/build/linux-amd64-release -maxdepth 1 -type f \
+            \( -name 'saidaioujou_recomp_tu1' -o -name '*.so' -o -name '*.so.*' \) \
+            -exec cp -L {} linux-amd64-release/ \;
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdoj-recomp-linux-amd64
+          path: linux-amd64-release
+          if-no-files-found: error
