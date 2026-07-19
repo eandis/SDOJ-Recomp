@@ -23,7 +23,16 @@ jobs:
           sudo ./llvm.sh 20
 
       - name: Configure
-        run: cmake --preset linux-amd64-release
+        run: |
+          set -o pipefail
+          if ! cmake --preset linux-amd64-release 2>&1 | tee configure.log; then
+            message=$(tail -n 80 configure.log)
+            message=${message//'%'/'%25'}
+            message=${message//$'\n'/'%0A'}
+            message=${message//$'\r'/'%0D'}
+            echo "::error title=CMake configure failed::$message"
+            exit 1
+          fi
 
       - name: Build
         run: cmake --build --preset linux-amd64-release --parallel 4
