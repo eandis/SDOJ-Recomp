@@ -17,7 +17,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config libgtk-3-dev wget
+          sudo apt-get install -y cmake ninja-build pkg-config libgtk-3-dev libx11-xcb-dev wget
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 20
