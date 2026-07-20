@@ -9,6 +9,8 @@ Dodonpachi Saidaioujou Recompilation using [rexglue](https://github.com/rexglue/
   
 # Building
 
+### Windows
+
 You need CMake 3.25 or newer, Ninja, LLVM/Clang with C++23 support, and the Visual Studio C++ build tools with a Windows SDK.
 
 Make sure cmake, ninja, clang and clang++ are in PATH.
@@ -21,11 +23,30 @@ Run:
 cmake --preset win-amd64-release
 cmake --build --preset win-amd64-release --parallel``
 
+### Linux
+
+You need CMake 3.25 or newer, Ninja, and Clang with C++23 support. The linux-amd64-release preset looks for clang-20/clang++-20 specifically.
+
+You'll also need a few system packages for the native UI, input and audio backends. On Debian/Ubuntu:
+
+``sh
+sudo apt install libgtk-3-dev libx11-xcb-dev libvulkan-dev libasound2-dev libpulse-dev libpipewire-0.3-dev``
+
+ReXGlue and all required dependencies are already included in the repo.
+
+Run:
+
+``sh
+cmake --preset linux-amd64-release
+cmake --build --preset linux-amd64-release --parallel``
+
+After building, copy librexruntime.so and libTracyClient.so from thirdparty/rexglue-sdk/out/linux-amd64/ into the build output folder (out/build/linux-amd64-release/), next to the saidaioujou_recomp_tu1 executable. They aren't copied there automatically, and the executable won't start without them.
+
 # First launch
 
 1. Put SDOJ iso file in this folder, beside the recomp exe.
 2. Put the TU_11LK1V7... TU1 file in the same folder.
-3. Run "launch.bat" or "launch.sh" if you're on Linux.
+3. Run "launch.bat".
 
 The first launch extracts the ISO to game_data and installs the three TU1 patch
 files.
@@ -36,7 +57,7 @@ setup, the ISO and TU container may be removed.
 
 # Settings 
 
-There are some hardcoded arguments in the launch.bat/launch.sh. You can edit them as you wish, but don't remove  --xex_apply_patches=true.
+There are some hardcoded arguments in the launch.cmd. You can edit them as you wish, but don't remove  --xex_apply_patches=true.
 
 You can open the settings by pressing F4 in game. To turn on keyboard inputs, go to the Input tab and turn on mnk_mode. The recommended input backend is xinput, the input lag should be around ~1 frame during gameplay with it. To achieve more consistent results, running the game through Special K is recommended. If you turn off VSync (it is disabled by default), you might have to cap the FPS manually to 60 via Special K or any other way.
 
