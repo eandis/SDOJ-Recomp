@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/exitgame.h"
 
 
 DEFINE_REX_FUNC(sub_82100000) {
@@ -67565,6 +67566,7 @@ loc_8211D3DC:
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 30, ctx.xer);
 	// bne cr6,0x8211dca0
 	if (!ctx.cr6.eq) goto loc_8211DCA0;
+	sdoj_pc_exit::quit();
 loc_8211D3E8:
 	// lis r11,-32134
 	ctx.r11.s64 = -2105933824;
