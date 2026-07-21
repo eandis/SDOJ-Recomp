@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/sdoj_patch_flags.h"
 
 
 #include <atomic>
@@ -1954,6 +1955,7 @@ DEFINE_REX_FUNC(RunRenderFrame) {
 	uint32_t ea{};
 	const uint32_t return_address = ctx.lr;
 	const bool is_early_render_call =
+		sdoj_patch_flags::render_enabled() &&
 		return_address == kEarlyRenderMarker;
 	const bool is_last_early_render_call =
 		is_early_render_call && ctx.r3.u32 == 1;

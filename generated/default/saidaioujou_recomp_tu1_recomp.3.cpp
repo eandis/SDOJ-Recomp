@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/sdoj_patch_flags.h"
 
 #include <rex/memory/utils.h>
 
@@ -70950,7 +70951,8 @@ loc_8217F640:
 loc_8217F650:
 	// only gameplay uses the early render call. menus stay untouched.
 	early_render_calls =
-		ctx.r31.u32 != 0 ? GetRenderCalls(base) : 0;
+		sdoj_patch_flags::render_enabled() && ctx.r31.u32 != 0
+			? GetRenderCalls(base) : 0;
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;
 	// bl 0x821797a0

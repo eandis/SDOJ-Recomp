@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/sdoj_patch_flags.h"
 
 
 #include <array>
@@ -127,7 +128,8 @@ void RefreshGameplayInput(PPCContext& ctx, uint8_t* base,
 DEFINE_REX_FUNC(ArrangeRenderCallback) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
-	if (late_render_calls_to_skip != 0) {
+	if (sdoj_patch_flags::render_enabled() &&
+		late_render_calls_to_skip != 0) {
 		// we already ran this early. skip the normal late call.
 		return;
 	}
@@ -171,7 +173,8 @@ loc_88051330:
 	// bne cr6,0x88051368
 	if (!ctx.cr6.eq) goto loc_88051368;
 	// bl 0x88033070
-	if (buffer_swapped_early.exchange(
+	if (sdoj_patch_flags::render_enabled() &&
+		buffer_swapped_early.exchange(
 			false, std::memory_order_acq_rel)) {
 		ctx.r3.s64 = 1;
 	} else {
@@ -1530,11 +1533,13 @@ loc_88051D30:
 	// bl 0x880358c0
 	ctx.lr = 0x88051D3C;
 	sub_880358C0(ctx, base);
-	const uint32_t input_object = REX_LOAD_U32(0x88881720);
-	const uint32_t input_manager =
-		input_object ? REX_LOAD_U32(input_object + 588) : 0;
-	RefreshGameplayInput(ctx, base, input_manager,
-		0x88881724, 0x8887D838, 0x88051D3C);
+	if (sdoj_patch_flags::input_enabled()) {
+		const uint32_t input_object = REX_LOAD_U32(0x88881720);
+		const uint32_t input_manager =
+			input_object ? REX_LOAD_U32(input_object + 588) : 0;
+		RefreshGameplayInput(ctx, base, input_manager,
+			0x88881724, 0x8887D838, 0x88051D3C);
+	}
 	// li r10,2
 	ctx.r10.s64 = 2;
 	// mr r11,r25
@@ -2138,9 +2143,10 @@ loc_88052160:
 	// stw r3,5836(r16)
 	REX_STORE_U32(ctx.r16.u32 + 5836, ctx.r3.u32);
 	const uint32_t render_calls_needed = ctx.r3.u32;
-	if (render_calls_needed == 1
+	if (sdoj_patch_flags::render_enabled() &&
+		(render_calls_needed == 1
 		|| render_calls_needed == 2
-	) {
+	)) {
 		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886FD218);
 		ctx.lr = 0x88052184;
 		SwapRenderBuffer(ctx, base);

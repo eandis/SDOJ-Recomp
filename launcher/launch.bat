@@ -19,5 +19,7 @@ start "" /D "%~dp0" "%~dp0saidaioujou_recomp_tu1.exe" ^
   --video_mode_refresh_rate=60 ^
   --xex_apply_patches=true ^
   --game_data_root="%~dp0game_data" ^
-  --user_data_root="%~dp0user_data"
+  --user_data_root="%~dp0user_data" ^
+  --render_patch=true ^
+  --input_patch=true
 exit /b 0

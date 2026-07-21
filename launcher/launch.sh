@@ -32,4 +32,6 @@ exec "$EXECUTABLE" \
     --video_mode_refresh_rate=60 \
     --xex_apply_patches=true \
     --game_data_root="$ROOT/game_data" \
-    --user_data_root="$ROOT/user_data"
+    --user_data_root="$ROOT/user_data" \
+    --input_patch=true \
+    --render_patch=true

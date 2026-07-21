@@ -67,6 +67,8 @@ The input lag fix (reduction from 3f to 1f) consists of 2 patches:
 - The first patch polls the controller again and rebuilds the gameplay input mask right before the game copies it, instead of using the stale mask.
 - The second patch runs the game's render callback batch earlier, waits for the buffer swap, and skips the original late calls. This saves another frame.
 
+You can turn them off or on via editing the launch arguments in launch.bat/launch.sh. The arguments are `--render_patch` and `--input_patch`
+
 The patches for both Normal and Arrange modes are in:
 
 - `generated/default/saidaioujou_recomp_tu1_recomp.3.cpp`
@@ -74,10 +76,3 @@ The patches for both Normal and Arrange modes are in:
 - `generated/CA022100/saidaioujou_recomp_tu1_recomp.1.cpp`
 - `generated/CA022110/saidaioujou_recomp_tu1_recomp.0.cpp`
 - `generated/CA022110/saidaioujou_recomp_tu1_recomp.1.cpp`
-
-
-Changelog:
-
-1.5:
-- Input lag reduced from 3f to 1f via a game patch. Everything else in the game is unmodifed.
-- Reverted back to default rexglue directx12 settings
