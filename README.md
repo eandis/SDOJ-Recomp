@@ -19,9 +19,8 @@ ReXGlue and all required dependencies are already included in the repo.
 
 Run:
 
-``cmd
-cmake --preset win-amd64-release
-cmake --build --preset win-amd64-release --parallel``
+`cmake --preset win-amd64-release`
+`cmake --build --preset win-amd64-release --parallel`
 
 ### Linux
 
@@ -29,16 +28,14 @@ You need CMake 3.25 or newer, Ninja, and Clang with C++23 support. The linux-amd
 
 You'll also need a few system packages for the native UI, input and audio backends. On Debian/Ubuntu:
 
-``sh
-sudo apt install libgtk-3-dev libx11-xcb-dev libvulkan-dev libasound2-dev libpulse-dev libpipewire-0.3-dev``
+`sudo apt install libgtk-3-dev libx11-xcb-dev libvulkan-dev libasound2-dev libpulse-dev libpipewire-0.3-dev`
 
 ReXGlue and all required dependencies are already included in the repo.
 
 Run:
 
-``sh
-cmake --preset linux-amd64-release
-cmake --build --preset linux-amd64-release --parallel``
+`cmake --preset linux-amd64-release`
+`cmake --build --preset linux-amd64-release --parallel`
 
 After building, copy librexruntime.so and libTracyClient.so from thirdparty/rexglue-sdk/out/linux-amd64/ into the build output folder (out/build/linux-amd64-release/), next to the saidaioujou_recomp_tu1 executable. They aren't copied there automatically, and the executable won't start without them.
 
