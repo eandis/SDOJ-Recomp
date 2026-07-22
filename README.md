@@ -6,6 +6,16 @@ Dodonpachi Saidaioujou Recompilation using [rexglue](https://github.com/rexglue/
 
 - Your own DoDonPachi Saidaioujou Xbox 360 ISO dump (MD5 366517C07EA2B1912F9B33F208C866BB)
 - Title Update 1.01 file
+
+# Known issues
+
+### Slowdown
+
+The slowdown is the same as Xbox 360, not including the hardware lag. That means the game can not go lower than half speed, and some places will have less slowdown (generally stage 5 in both regular and expert modes). Xbox 360 Arrange does **not** have any slowdown. All the slowdown comes from Xbox 360 lagging itself. Slowdown for arcade modes **will be adjusted** in the following releases
+
+### Other issues
+- The render patch sometimes introduces graphical artificats
+- The frame delievery is pretty bad right now, the game does not look very smooth unless you run it through Special K.
   
 # Building
 
