@@ -15,3 +15,7 @@ CMakeUserPresets.json
 .vs/
 .vscode/
 .idea/
+.dockerignore
+Dockerfile
+build-linux-docker.cmd
+.gitattributes

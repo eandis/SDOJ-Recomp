@@ -70949,15 +70949,15 @@ loc_8217F640:
 	// stw r11,22296(r31)
 	REX_STORE_U32(ctx.r31.u32 + 22296, ctx.r11.u32);
 loc_8217F650:
-	// only gameplay uses the early render call. menus stay untouched.
-	early_render_calls =
-		sdoj_patch_flags::render_enabled() && ctx.r31.u32 != 0
-			? GetRenderCalls(base) : 0;
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;
 	// bl 0x821797a0
 	ctx.lr = 0x8217F658;
 	UpdateInputs(ctx, base);
+	// only gameplay uses the early render call. menus stay untouched.
+	early_render_calls =
+		sdoj_patch_flags::render_enabled() && ctx.r31.u32 != 0
+			? GetRenderCalls(base) : 0;
 	if (early_render_calls != 0) {
 		const PPCContext saved_cpu_state = ctx;
 		for (uint32_t call_index = 0;
