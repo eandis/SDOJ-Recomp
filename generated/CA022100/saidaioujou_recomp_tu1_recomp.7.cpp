@@ -37870,6 +37870,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.enemyBullets, 0.012f, score); // original 024000000208616257
 		}
 			if (s.section >= 5) score = std::fma(s.enemyBullets, 0.008750000037252903, score);
+			if (s.bossScript == 0x8814E188)	score = std::fma(s.enemyBullets, 0.004f, score); // ending of s5 boss
 		}
 
 		if (s.expertMode) {
