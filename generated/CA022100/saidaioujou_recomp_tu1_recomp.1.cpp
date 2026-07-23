@@ -4,9 +4,12 @@
 
 #include <array>
 #include <atomic>
+#include <mutex>
 
 uint32_t late_render_calls_to_skip = 0;
 std::atomic<bool> buffer_swapped_early{false};
+std::mutex render_buffer_lock;
+std::atomic<uint32_t> render_worker_state{0};
 
 namespace {
 
@@ -2109,13 +2112,16 @@ loc_88052198:
 		|| render_calls_needed == 2
 	)) {
 		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886F4CF0);
-		ctx.lr = 0x880521B4;
-		SwapRenderBuffer(ctx, base);
-		const bool buffer_swapped =
-			REX_LOAD_U32(0x886F4CF0) != old_buffer_swap_count;
-		if (buffer_swapped) {
-			buffer_swapped_early.store(
-				true, std::memory_order_release);
+		{
+			std::lock_guard<std::mutex> lock(render_buffer_lock);
+			ctx.lr = 0x880521B4;
+			SwapRenderBuffer(ctx, base);
+			const bool buffer_swapped =
+				REX_LOAD_U32(0x886F4CF0) != old_buffer_swap_count;
+			if (buffer_swapped) {
+				buffer_swapped_early.store(
+					true, std::memory_order_release);
+			}
 		}
 		ctx.r3.u64 = render_calls_needed;
 	}

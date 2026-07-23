@@ -1,5 +1,18 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
+namespace {
+
+void SaveBossScript(uint8_t* base, uint32_t script) {
+	const bool boss_active = REX_LOAD_U32(0x88610028) != 0 ||
+		REX_LOAD_U32(0x8861002C) != 0 ||
+		REX_LOAD_U32(0x88610030) != 0;
+	if (boss_active && script >= 0x88100000 && script < 0x88190000) {
+		REX_STORE_U32(0x886B1D68, script);
+	}
+}
+
+}
+
 DEFINE_REX_FUNC(sub_88093008) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
@@ -13758,6 +13771,7 @@ loc_88098EFC:
 	// mtctr r11
 	ctx.ctr.u64 = ctx.r11.u64;
 	// bctrl 
+	SaveBossScript(base, ctx.ctr.u32);
 	ctx.lr = 0x88098F24;
 	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 loc_88098F24:
@@ -13795,6 +13809,7 @@ loc_88098F3C:
 	// mtctr r11
 	ctx.ctr.u64 = ctx.r11.u64;
 	// bctrl 
+	SaveBossScript(base, ctx.ctr.u32);
 	ctx.lr = 0x88098F64;
 	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 loc_88098F64:
@@ -13832,6 +13847,7 @@ loc_88098F7C:
 	// mtctr r11
 	ctx.ctr.u64 = ctx.r11.u64;
 	// bctrl 
+	SaveBossScript(base, ctx.ctr.u32);
 	ctx.lr = 0x88098FA4;
 	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 loc_88098FA4:

@@ -4,13 +4,17 @@
 
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <thread>
 
 extern uint32_t late_render_calls_to_skip;
+extern std::mutex render_buffer_lock;
+extern std::atomic<uint32_t> render_worker_state;
 
 namespace {
 
 constexpr uint32_t kEarlyRenderMarker = 0x8217F65E;
+bool early_batch_started = false;
 
 void WaitForBufferSwap(uint8_t* base, uint32_t old_buffer_swap_count) {
 	const auto timeout =
@@ -1961,7 +1965,18 @@ DEFINE_REX_FUNC(RunRenderFrame) {
 		is_early_render_call && ctx.r3.u32 == 1;
 	const uint32_t early_render_calls = ctx.r4.u32;
 	uint32_t old_buffer_swap_count = 0;
+	if (is_early_render_call && ctx.r3.u32 == early_render_calls) {
+		early_batch_started = false;
+	}
 	if (is_early_render_call && late_render_calls_to_skip != 0) {
+		return;
+	}
+	if (is_early_render_call && ctx.r3.u32 == early_render_calls) {
+		uint32_t waiting = 1;
+		early_batch_started = render_worker_state.compare_exchange_strong(
+			waiting, 2, std::memory_order_acq_rel);
+	}
+	if (is_early_render_call && !early_batch_started) {
 		return;
 	}
 	// mflr r12
@@ -2029,15 +2044,25 @@ loc_88030DE0:
 	}
 loc_88030DF0:
 	if (is_early_render_call) {
-		if (is_last_early_render_call && ctx.r31.u32 != 0) {
-			WaitForBufferSwap(base, old_buffer_swap_count);
-			late_render_calls_to_skip = early_render_calls;
+		if (is_last_early_render_call) {
+			if (ctx.r31.u32 != 0) {
+				WaitForBufferSwap(base, old_buffer_swap_count);
+				late_render_calls_to_skip = early_render_calls;
+			} else {
+				render_worker_state.store(0, std::memory_order_release);
+			}
+			early_batch_started = false;
 		}
 		goto loc_render_callback_exit;
 	}
 	// bl 0x88033e88
 	ctx.lr = 0x88030DF4;
-	sub_88033E88(ctx, base);
+	if (sdoj_patch_flags::render_enabled()) {
+		std::lock_guard<std::mutex> lock(render_buffer_lock);
+		sub_88033E88(ctx, base);
+	} else {
+		sub_88033E88(ctx, base);
+	}
 loc_render_callback_exit:
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;
@@ -7021,6 +7046,10 @@ loc_880331E8:
 DEFINE_REX_FUNC(WaitForRenderFrame) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
+	const uint32_t return_address = ctx.lr;
+	const bool track_render_worker =
+		sdoj_patch_flags::render_enabled() &&
+		(return_address == 0x88051D5C || return_address == 0x880521CC);
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x8804847c
@@ -7040,6 +7069,9 @@ DEFINE_REX_FUNC(WaitForRenderFrame) {
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r28.u32 + -28168);
 	// lwz r29,16908(r31)
 	ctx.r29.u64 = REX_LOAD_U32(ctx.r31.u32 + 16908);
+	if (track_render_worker) {
+		render_worker_state.store(1, std::memory_order_release);
+	}
 	// lwz r11,0(r3)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r3.u32 + 0);
 	// lwz r10,56(r11)
@@ -7177,6 +7209,9 @@ loc_880332E8:
 	// addi r1,r1,144
 	ctx.r1.s64 = ctx.r1.s64 + 144;
 	// b 0x880484cc
+	if (track_render_worker) {
+		render_worker_state.store(0, std::memory_order_release);
+	}
 	__restgprlr_25(ctx, base);
 	return;
 }

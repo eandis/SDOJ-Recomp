@@ -37694,6 +37694,7 @@ struct SlowdownInputs {
 	double largeStars;                  // large stars used during the later stage 5 boss phases
 	uint32_t stage5UnknownCount;        // something at section 5 of stage 5
 	double playerShotWork;              // player shot/laser processing work, only used in stage 5 section 5
+	uint32_t bossScript;                // latest boss script callback
 };
 
 static double slowdown_float_mul(int32_t value, float weight) {
@@ -37838,38 +37839,54 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		return score;
 
 	case 4: // stage 5
-		score += slowdown_float_mul(s.renderWork,
-			s.section < 5 ? 0.00104999996f : 0.000910000002f);
+			score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.00109099996f : 0.000910000002f);
 
-		if (s.section == 0) score = std::fma(s.enemyBullets, 0.016000000759959221, score);
-		if (s.scroll > 78 && s.scroll < 478) {
+		// separate these for now.
+		if (s.expertMode) {
+			if (s.section == 0) score = std::fma(s.enemyBullets, 0.016000000759959221, score);
+			if (s.scroll > 78 && s.scroll < 478) {
 			score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		}
-		if (s.scroll > 230 && s.scroll < 244) {
-			score = std::fma(s.enemyBullets, 0.024000000208616257, score);
+			if (s.scroll > 230 && s.scroll < 244) {
+				score = std::fma(s.enemyBullets, 0.024000000208616257, score);
 		}
-		if (s.section >= 5) score = std::fma(s.enemyBullets, 0.008750000037252903, score);
+			if (s.section >= 5) score = std::fma(s.enemyBullets, 0.008750000037252903, score);
+
+		}
+
+		else {
+			if (s.section == 0) score = std::fma(s.enemyBullets, 0.013f, score);
+			if (s.scroll > 78 && s.scroll < 478) {
+			score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
+		}
+			if (s.scroll > 230 && s.scroll < 244) {
+				score = std::fma(s.enemyBullets, 0.024000000208616257, score);
+		}
+			if (s.section >= 5) score = std::fma(s.enemyBullets, 0.008750000037252903, score);
+		}
 
 		if (s.expertMode) {
 			if (s.section == 0) {
 				score = -std::fma(s.enemyBullets, 0.0040000001899898052, -score);
 			}
-			if (s.scroll > 78 && s.scroll < 92) { // midbosses section start
-				score = -std::fma(s.enemyBullets, 0.0017500000540167093, -score);
+			if (s.scroll > 78 && s.scroll < 213) {
+				score = -std::fma(s.enemyBullets, 0.0019500000540167093, -score); // original 0017500000540167093
 			}
-			if (s.scroll > 92 && s.scroll < 105) { // a bit more slowdown for attack 3 of the first midboss. this is only works for the first cycle but if you get to it in the 2nd cycle then lol
-				score = std::fma(s.enemyBullets, 0.015f, score); // original 0.0017500000540167093 -score -std
-				// for later: change the slowdown based on attack
+			if (s.scroll > 212 && s.scroll < 231) {
+				score = std::fma(s.enemyBullets, 0.009000000208616257, score); // section after midbosses
 			}
-			if (s.scroll > 105 && s.scroll < 216) { // back to original slowdown.
-				score = -std::fma(s.enemyBullets, 0.0017500000540167093, -score);
+			if (s.scroll > 93 && s.scroll < 103) { // a bit more slowdown for attack 3 of the first midboss.
+				score = std::fma(s.enemyBullets, 0.008f, score);
 			}
 			if (s.scroll > 230 && s.scroll < 244) {
 				score = -std::fma(s.enemyBullets, 0.0080000003799796104, -score);
 			}
-			if (s.section == 5) { // boss
-				score = std::fma(s.enemyBullets, 0.004f, score); // original 0.0010000000474974513
-				//^^ this honestly should also be based on attack but this suffice for now
+			if (s.scroll > 244 && s.scroll < 293) {
+				score = std::fma(s.enemyBullets, 0.003f, score);
+			}
+
+			if (s.section == 5) {
+				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.0035f : 0.001f, score); // extra slowdown for jetbachi opener
 			}
 		}
 
@@ -37917,6 +37934,7 @@ DEFINE_REX_FUNC(sub_88123D28) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
 	uint32_t ea{};
+	bool boss_active = false;
 	SlowdownInputs readable_inputs{};
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
@@ -38327,6 +38345,11 @@ loc_88123FE8:
 	// lwz r3,-4(r31)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r31.u32 + -4);
 	readable_inputs.stage5UnknownCount = ctx.r3.u32;
+	boss_active = REX_LOAD_U32(0x88610028) != 0 ||
+		REX_LOAD_U32(0x8861002C) != 0 ||
+		REX_LOAD_U32(0x88610030) != 0;
+	readable_inputs.bossScript = boss_active ? REX_LOAD_U32(0x886B1D68) : 0;
+	if (!boss_active) REX_STORE_U32(0x886B1D68, 0);
 
 	ctx.f30.u64 = REX_LOAD_U64(ctx.r11.u32 + 456);
 	ctx.f0.f64 = calculate_slowdown_score(readable_inputs);
