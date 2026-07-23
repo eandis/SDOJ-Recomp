@@ -37718,6 +37718,7 @@ static int32_t slowdown_whole_number(double value) {
 }
 
 // rewritten generated code to readable C++
+// this is all a bunch of schizo math that has nothing to do with how the game works on the actual real hardware.
 // score of 16.6666 or higher will start the slowdown.
 static double calculate_slowdown_score(const SlowdownInputs& s) {
 	double score = s.baseScore;
@@ -37856,11 +37857,17 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 
 		else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.013f, score);
-			if (s.scroll > 78 && s.scroll < 478) {
+			if (s.scroll > 78 && s.scroll < 212) { // midbosses section.
+			score = std::fma(s.enemyBullets, 0.0045f, score); // original 0080000003799796104
+		}
+			if (s.scroll > 211 && s.scroll < 478) {
 			score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		}
+			if (s.scroll > 212 && s.scroll < 231) {
+				score = -std::fma(s.enemyBullets, 0.003f, -score); // reduce a bit for section after midbosses.
+		}
 			if (s.scroll > 230 && s.scroll < 244) {
-				score = std::fma(s.enemyBullets, 0.024000000208616257, score);
+				score = std::fma(s.enemyBullets, 0.012f, score); // original 024000000208616257
 		}
 			if (s.section >= 5) score = std::fma(s.enemyBullets, 0.008750000037252903, score);
 		}
@@ -37873,7 +37880,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = -std::fma(s.enemyBullets, 0.0019500000540167093, -score); // original 0017500000540167093
 			}
 			if (s.scroll > 212 && s.scroll < 231) {
-				score = std::fma(s.enemyBullets, 0.009000000208616257, score); // section after midbosses
+				score = std::fma(s.enemyBullets, 0.009000000208616257, score); // section after midbosses.
 			}
 			if (s.scroll > 93 && s.scroll < 103) { // a bit more slowdown for attack 3 of the first midboss.
 				score = std::fma(s.enemyBullets, 0.008f, score);
@@ -37886,7 +37893,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			}
 
 			if (s.section == 5) {
-				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.0035f : 0.001f, score); // extra slowdown for jetbachi opener
+				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.0035f : 0.001f, score); // extra slowdown for jetbachi opener.
 			}
 		}
 
