@@ -37732,6 +37732,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.017999999225139618, score);
 			if (s.section == 1) score = std::fma(s.enemyBullets, 0.010499999858438969, score);
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.016659999266266823, score);
+			if (s.section == 1 && s.scroll < 300) score = std::fma(s.enemyBullets, 0.016659999266266823, score);
 		} else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.035000000149011612, score);
 			if (s.section == 1 && s.scroll < 390) {
