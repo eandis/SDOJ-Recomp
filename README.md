@@ -66,7 +66,7 @@ setup, the ISO and TU container may be removed.
 
 There are some hardcoded arguments in launch.cmd. You can edit them as you wish.
 
-You can open the settings by pressing F4 in game. To turn on keyboard inputs, go to the Input tab and turn on mnk_mode. For best latency, it is recommneded to use input_backend set to xinput and d3d12_queue_priority set to 2. To achieve more consistent results, running the game through Special K is recommended. If you turn off VSync (it is disabled by default), you might have to cap the FPS manually to 60 via Special K or any other way.
+You can open the settings by pressing F4 in game. To turn on keyboard inputs, go to the Input tab and turn on mnk_mode. For best latency, it is recommneded to use input_backend set to xinput. To achieve more consistent results, running the game through Special K is recommended. If you turn off VSync (it is disabled by default), you might have to cap the FPS manually to 60 via Special K or any other way.
 
 The saved settings are stored in the saidaioujou_recomp_tu1.toml config file.
 
