@@ -35,6 +35,7 @@
 #include <rex/system/xmutant.h>
 #include <rex/system/xthread.h>
 #include <rex/thread.h>
+#include <rex/vec128.h>
 
 REXCVAR_DEFINE_BOOL(ignore_thread_priorities, true, "Kernel",
                     "Ignores game-specified thread priorities");
@@ -132,6 +133,15 @@ XThread* XThread::GetCurrentThread() {
     assert_always("Attempting to use kernel stuff from a non-kernel thread");
   }
   return thread;
+}
+
+void XThread::CheckTitleTermination() {
+  XThread* self = GetBoundCurrentXThread();
+  if (self && self->is_guest_thread() && self->is_running() &&
+      self->kernel_state()->is_terminating_title()) {
+    // Unwind cleanly at this safe point. Does not return.
+    self->Exit(0);
+  }
 }
 
 uint32_t XThread::GetCurrentThreadHandle() {
@@ -513,6 +523,12 @@ X_STATUS XThread::Exit(int exit_code) {
 
   // TODO(tomc): do we need thread notifications (related to processor thread management)?
 
+  // The guest stack belongs to the thread's execution lifetime, not the handle
+  // lifetime. Games can keep thread handles after exit; holding the stack until
+  // object destruction leaks the reserved stack range and eventually makes
+  // ExCreateThread fail even though the old threads are no longer running.
+  FreeStack();
+
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_xthread_tls_ = nullptr;
   PROFILE_THREAD_EXIT();
@@ -540,10 +556,12 @@ X_STATUS XThread::Terminate(int exit_code) {
     // Same lifetime rule as Exit(): don't allow ReleaseHandle() to destroy
     // the thread object before Thread::Exit() reaches pthread_exit().
     auto self = retain_object(this);
+    FreeStack();
     ReleaseHandle();
     rex::thread::Thread::Exit(exit_code);
   } else {
     thread_->Terminate(exit_code);
+    FreeStack();
     ReleaseHandle();
   }
 
@@ -994,8 +1012,10 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t in
     timeout_ms = 0;
   }
   timeout_ms = chrono::Clock::ScaleGuestDurationMillis(timeout_ms);
+  CheckTitleTermination();
   if (alertable) {
     auto result = rex::thread::AlertableSleep(std::chrono::milliseconds(timeout_ms));
+    CheckTitleTermination();
     switch (result) {
       default:
       case rex::thread::SleepResult::kSuccess:
@@ -1013,6 +1033,7 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t in
     } else {
       rex::thread::Sleep(std::chrono::milliseconds(timeout_ms));
     }
+    CheckTitleTermination();
   }
 
   return X_STATUS_SUCCESS;

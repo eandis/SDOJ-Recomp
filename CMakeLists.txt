@@ -25,3 +25,11 @@ else()
 endif()
 
 rexglue_setup_target(saidaioujou_recomp_tu1)
+
+if(TARGET rexgpu-xenos)
+    add_dependencies(saidaioujou_recomp_tu1 rexgpu-xenos)
+    add_custom_command(TARGET saidaioujou_recomp_tu1 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:rexgpu-xenos>
+            $<TARGET_FILE_DIR:saidaioujou_recomp_tu1>)
+endif()

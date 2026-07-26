@@ -23,9 +23,6 @@
 #include <rex/system/xfile.h>
 #include <rex/system/xthread.h>
 
-REXCVAR_DEFINE_BOOL(xex_apply_patches, true, "Kernel",
-                    "Search for and apply XEX patches (path + 'p') on module load");
-
 namespace rex::system {
 
 UserModule::UserModule(KernelState* kernel_state)
@@ -105,29 +102,26 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     return result;
   }
 
-  if (REXCVAR_GET(xex_apply_patches)) {
-    // Search for xexp patch file
-    auto patch_entry = kernel_state_->file_system()->ResolvePath(path_ + "p");
+  // Search for sibling XEX patch file
+  auto patch_entry = kernel_state_->file_system()->ResolvePath(path_ + "p");
+  if (patch_entry) {
+    auto patch_path = patch_entry->absolute_path();
 
-    if (patch_entry) {
-      auto patch_path = patch_entry->absolute_path();
+    REXSYS_DEBUG("Loading XEX patch from {}", patch_path);
 
-      REXSYS_DEBUG("Loading XEX patch from {}", patch_path);
-
-      auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
-      result = patch_module->LoadFromFile(patch_path);
-      if (!result) {
-        result = patch_module->xex_module()->ApplyPatch(xex_module());
-        if (result) {
-          REXSYS_ERROR("Failed to apply XEX patch, code: {}", result);
-        }
-      } else {
-        REXSYS_ERROR("Failed to load XEX patch, code: {}", result);
-      }
-
+    auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
+    result = patch_module->LoadFromFile(patch_path);
+    if (!result) {
+      result = patch_module->xex_module()->ApplyPatch(xex_module());
       if (result) {
-        return X_STATUS_UNSUCCESSFUL;
+        REXSYS_ERROR("Failed to apply XEX patch, code: {}", result);
       }
+    } else {
+      REXSYS_ERROR("Failed to load XEX patch, code: {}", result);
+    }
+
+    if (result) {
+      return X_STATUS_UNSUCCESSFUL;
     }
   }
 

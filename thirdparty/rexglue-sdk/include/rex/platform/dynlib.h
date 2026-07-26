@@ -11,6 +11,15 @@
 
 namespace rex::platform {
 
+enum class SymbolResolution {
+  // Resolve symbols on first use. Maps to RTLD_LAZY on POSIX; the only mode on
+  // Windows.
+  kLazy,
+  // Resolve all symbols at load time. Load fails if any unresolved symbol
+  // exists. Maps to RTLD_NOW on POSIX; the only mode on Windows.
+  kImmediate,
+};
+
 class DynamicLibrary {
  public:
   DynamicLibrary() = default;
@@ -21,7 +30,7 @@ class DynamicLibrary {
   DynamicLibrary(DynamicLibrary&& other) noexcept;
   DynamicLibrary& operator=(DynamicLibrary&& other) noexcept;
 
-  bool Load(const std::filesystem::path& path);
+  bool Load(const std::filesystem::path& path, SymbolResolution mode = SymbolResolution::kLazy);
   void Close();
   explicit operator bool() const { return handle_ != nullptr; }
 

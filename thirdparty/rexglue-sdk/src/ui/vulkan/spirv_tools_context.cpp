@@ -9,11 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <cstdlib>
 #include <filesystem>
 #include <string>
 
 #include <rex/logging.h>
+#include <rex/platform/env.h>
 #include <rex/ui/vulkan/spirv_tools_context.h>
 
 namespace rex {
@@ -21,13 +21,13 @@ namespace ui {
 namespace vulkan {
 
 bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
-  const char* vulkan_sdk_env = std::getenv("VULKAN_SDK");
-  if (!vulkan_sdk_env) {
+  auto vulkan_sdk_env = rex::platform::env::get("VULKAN_SDK");
+  if (!vulkan_sdk_env.has_value()) {
     REXLOG_ERROR("SPIRV-Tools: Failed to get the VULKAN_SDK environment variable");
     Shutdown();
     return false;
   }
-  std::filesystem::path vulkan_sdk_path(vulkan_sdk_env);
+  std::filesystem::path vulkan_sdk_path(*vulkan_sdk_env);
   auto library_path = vulkan_sdk_path / platform::lib_names::kSpirvToolsSdkPath;
   if (!library_.Load(library_path)) {
     REXLOG_ERROR("SPIRV-Tools: Failed to load {}", library_path.string());

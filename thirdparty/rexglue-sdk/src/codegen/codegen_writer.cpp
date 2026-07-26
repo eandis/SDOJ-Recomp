@@ -22,14 +22,13 @@
 
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/template_registry.h>
+#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 
 #include "codegen_logging.h"
 #include "template_registry_internal.h"
-
-#include <xxhash.h>
 
 namespace {
 
@@ -292,35 +291,14 @@ void CodegenWriter::FlushPendingWrites() {
     std::string filePath = (outputPath / filename).string();
     REXCODEGEN_TRACE("flush_pending_writes: filePath={}", filePath);
 
-    bool shouldWrite = true;
-
-    FILE* f = fopen(filePath.c_str(), "rb");
-    if (f) {
-      std::vector<uint8_t> temp;
-
-      fseek(f, 0, SEEK_END);
-      long fileSize = ftell(f);
-      if (fileSize == static_cast<long>(content.size())) {
-        fseek(f, 0, SEEK_SET);
-        temp.resize(fileSize);
-        fread(temp.data(), 1, fileSize, f);
-
-        shouldWrite = !XXH128_isEqual(XXH3_128bits(temp.data(), temp.size()),
-                                      XXH3_128bits(content.data(), content.size()));
-      }
-      fclose(f);
+    FILE* f = rex::filesystem::OpenFile(rex::to_path(filePath), "wb");
+    if (!f) {
+      REXCODEGEN_ERROR("Failed to open file for writing: {}", filePath);
+      continue;
     }
-
-    if (shouldWrite) {
-      f = fopen(filePath.c_str(), "wb");
-      if (!f) {
-        REXCODEGEN_ERROR("Failed to open file for writing: {}", filePath);
-        continue;
-      }
-      fwrite(content.data(), 1, content.size(), f);
-      fclose(f);
-      REXCODEGEN_TRACE("Wrote {} bytes to {}", content.size(), filePath);
-    }
+    fwrite(content.data(), 1, content.size(), f);
+    fclose(f);
+    REXCODEGEN_TRACE("Wrote {} bytes to {}", content.size(), filePath);
 
     writtenFiles_.push_back(filename);
   }

@@ -78,10 +78,6 @@ struct RecompilerConfig {
   std::string outDirectoryPath;     ///< Output directory for generated code
   std::string templateDir;          ///< Optional custom template directory for overrides
 
-  // Patch file paths (TODO: implement patching workflow)
-  std::string patchFilePath;
-  std::string patchedFilePath;
-
   // === Code generation options (optional) ===
   bool skipLr = false;
   bool ctrAsLocalVariable = false;

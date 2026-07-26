@@ -54,11 +54,43 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0008: {
+      // Raw dump so we can confirm the actual buffer layout the game sends.
+      uint32_t raw0 = buffer_length >= 4 ? memory::load_and_swap<uint32_t>(buffer + 0) : 0;
+      uint32_t raw4 = buffer_length >= 8 ? memory::load_and_swap<uint32_t>(buffer + 4) : 0;
+      REXKRNL_INFO("XGIUserWriteAchievements called: buf_len={} raw[0]={:08X} raw[4]={:08X}",
+                   buffer_length, raw0, raw4);
+
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t achievement_count = memory::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t achievements_ptr = memory::load_and_swap<uint32_t>(buffer + 4);
-      REXKRNL_DEBUG("XGIUserWriteAchievements({:08X}, {:08X})", achievement_count,
-                    achievements_ptr);
+      uint32_t achievement_count = raw0;
+      uint32_t achievements_ptr = raw4;
+
+      // Empirically confirmed from log: each entry is {u32 padding/user_index, u32 id, ...}.
+      // The achievement ID sits at offset 4, not 0. Stride 8 covers the observed fields.
+      constexpr uint32_t kEntryIdOffset = 4;
+      constexpr uint32_t kEntryStride = 8;
+      constexpr uint32_t kMaxAchievements = 1000;
+
+      if (achievements_ptr && achievement_count > 0) {
+        if (achievement_count > kMaxAchievements) {
+          REXKRNL_WARN("XGIUserWriteAchievements: count={} unreasonable, ignoring",
+                       achievement_count);
+          return X_E_FAIL;
+        }
+        uint32_t span_end = achievements_ptr + achievement_count * kEntryStride - 1;
+        if (!memory_->LookupHeap(achievements_ptr) || !memory_->LookupHeap(span_end)) {
+          REXKRNL_WARN("XGIUserWriteAchievements: ptr {:08X} OOB", achievements_ptr);
+          return X_E_FAIL;
+        }
+        auto* base = memory_->TranslateVirtual(achievements_ptr);
+        for (uint32_t i = 0; i < achievement_count; ++i) {
+          uint32_t id = memory::load_and_swap<uint32_t>(base + i * kEntryStride + kEntryIdOffset);
+          REXKRNL_INFO("XGIUserWriteAchievements: id={} ({})", id, i);
+          kernel_state_->UnlockAchievement(id);
+        }
+      } else {
+        REXKRNL_INFO("XGIUserWriteAchievements: skipped (count={} ptr={:08X})", achievement_count,
+                     achievements_ptr);
+      }
       return X_E_SUCCESS;
     }
     case 0x000B0010: {

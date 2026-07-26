@@ -138,7 +138,7 @@ bool CommandProcessor::Initialize() {
 
   worker_running_ = true;
   worker_thread_ = system::object_ref<system::XHostThread>(
-      new system::XHostThread(kernel_state_, 128 * 1024, 0x20, [this]() {
+      new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
       }));

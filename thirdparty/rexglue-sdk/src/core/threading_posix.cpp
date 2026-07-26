@@ -41,7 +41,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <dlfcn.h>
 
 #include <rex/main_android.h>
-#include <rex/string/util.h>
+#include <rex/string.h>
 #endif
 
 #if REX_PLATFORM_LINUX
@@ -654,7 +654,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         }
       } else {
         std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
-        std::strcpy(result.data(), android_pre_api_26_name_);
+        rex::string::copy_truncating(result.data(), android_pre_api_26_name_, result.size());
       }
 #else
       if (pthread_getname_np(thread_, result.data(), result.size() - 1) != 0) {
@@ -682,8 +682,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
     std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
-    rex::string::util_copy_truncating(android_pre_api_26_name_, name,
-                                      rex::countof(android_pre_api_26_name_));
+    rex::string::copy_truncating(android_pre_api_26_name_, name,
+                                 rex::countof(android_pre_api_26_name_));
   }
 #endif
 

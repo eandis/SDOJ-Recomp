@@ -173,10 +173,22 @@ std::optional<LegacyConversion> ConvertLegacyConfig(const fs::path& legacy_path)
     }
   }
 
-  static constexpr std::array<std::string_view, 7> kManifestEmittedKeys = {
-      "project_name",    "file_path",         "out_directory_path", "template_dir",
-      "patch_file_path", "patched_file_path", "includes",
+  static constexpr std::array<std::string_view, 5> kManifestEmittedKeys = {
+      "project_name", "file_path", "out_directory_path", "template_dir", "includes",
   };
+
+  static constexpr std::array<std::string_view, 2> kRemovedTopLevelKeys = {
+      "patch_file_path",
+      "patched_file_path",
+  };
+  for (auto key : kRemovedTopLevelKeys) {
+    if (tbl[key].value<std::string>()) {
+      REXLOG_WARN(
+          "Legacy key '{}' in {} is no longer used. Patching is now auto-detected from "
+          "the '<file>p' sibling at codegen time. Dropping during migration.",
+          key, legacy_path.string());
+    }
+  }
 
   std::string entrypoint_body;
   size_t i = 0;
@@ -191,6 +203,14 @@ std::optional<LegacyConversion> ConvertLegacyConfig(const fs::path& legacy_path)
       if (LineSetsKey(lines[i], key)) {
         emitted_by_manifest = true;
         break;
+      }
+    }
+    if (!emitted_by_manifest) {
+      for (auto key : kRemovedTopLevelKeys) {
+        if (LineSetsKey(lines[i], key)) {
+          emitted_by_manifest = true;
+          break;
+        }
       }
     }
     size_t end = FindAssignmentEndLine(lines, i);
@@ -238,11 +258,9 @@ std::optional<LegacyConversion> ConvertLegacyConfig(const fs::path& legacy_path)
   manifest_content += '\n';
   manifest_content += RenderKeyString("out_directory_path", out_directory_path);
   manifest_content += '\n';
-  for (auto key : {"template_dir", "patch_file_path", "patched_file_path"}) {
-    if (auto v = tbl[key].value<std::string>()) {
-      manifest_content += RenderKeyString(key, *v);
-      manifest_content += '\n';
-    }
+  if (auto v = tbl["template_dir"].value<std::string>()) {
+    manifest_content += RenderKeyString("template_dir", *v);
+    manifest_content += '\n';
   }
   if (!entrypoint_includes.empty()) {
     manifest_content += "includes = [\n";

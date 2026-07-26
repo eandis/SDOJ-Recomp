@@ -97,12 +97,6 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
   if (auto v = toml["template_dir"].value<std::string>()) {
     MergeScalar(cfg.templateDir, *v, "template_dir");
   }
-  if (auto v = toml["patch_file_path"].value<std::string>()) {
-    MergeScalar(cfg.patchFilePath, *v, "patch_file_path");
-  }
-  if (auto v = toml["patched_file_path"].value<std::string>()) {
-    MergeScalar(cfg.patchedFilePath, *v, "patched_file_path");
-  }
 
   // Bool scalars
   auto hasBool = [&](const char* key) -> bool { return toml[key].is_boolean(); };

@@ -11,6 +11,9 @@
 
 #pragma once
 
+#include <cstdint>
+#include <filesystem>
+
 #include <rex/system/xtypes.h>
 
 // Forward declarations
@@ -18,8 +21,10 @@ namespace rex::runtime {
 class FunctionDispatcher;
 }
 namespace rex::ui {
+class GraphicsProvider;
+class Presenter;
 class WindowedAppContext;
-}
+}  // namespace rex::ui
 namespace rex::system {
 class KernelState;
 }
@@ -44,6 +49,35 @@ class IGraphicsSystem {
                                  KernelState* kernel_state) = 0;
 
   virtual bool has_presentation() const = 0;
+
+  // --- Optional capabilities, default no-op -------------------------------
+
+  // Host presentation objects for ReXApp's overlay wiring; custom systems may
+  // leave these null.
+  virtual ui::GraphicsProvider* provider() const { return nullptr; }
+  virtual ui::Presenter* presenter() const { return nullptr; }
+
+  // Guest GPU services reached from the xboxkrnl Vd* exports.
+  virtual void SetInterruptCallback(uint32_t callback, uint32_t user_data) {
+    (void)callback;
+    (void)user_data;
+  }
+  virtual void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
+    (void)ptr;
+    (void)size_log2;
+  }
+  virtual void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2) {
+    (void)ptr;
+    (void)block_size_log2;
+  }
+
+  // Persistent shader/pipeline storage under the cache root. Default: none.
+  virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+                                       bool blocking) {
+    (void)cache_root;
+    (void)title_id;
+    (void)blocking;
+  }
 
   // One-shot convenience for callers that don't care about the split.
   X_STATUS Setup(runtime::FunctionDispatcher* function_dispatcher, KernelState* kernel_state,

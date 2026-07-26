@@ -266,7 +266,7 @@ static void FillFindData(mapped_void lpFindFileData, rex::filesystem::Entry* ent
 
   // 0x2C cFileName[260]
   const auto& name = entry->name();
-  std::strncpy(reinterpret_cast<char*>(buf + 0x2C), name.c_str(), 259);
+  rex::string::copy_truncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
   // 0x130 cAlternateFileName[14] already zero
 }
 
@@ -342,7 +342,11 @@ u32 MoveFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
     return 0;
   }
 
-  src_entry->Rename(rex::to_path(dst));
+  X_STATUS rename_status = src_entry->Rename(rex::to_path(dst));
+  if (rename_status != X_STATUS_SUCCESS) {
+    REXKRNL_DEBUG("rexcrt_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst, rename_status);
+    return 0;
+  }
   REXKRNL_TRACE("rexcrt_MoveFileA: '{}' -> '{}'", src, dst);
   return 1;
 }

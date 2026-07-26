@@ -90,16 +90,6 @@ inline nlohmann::json names_to_json(const AppNameParts& names) {
           {"upper_case", names.upper_case}};
 }
 
-inline bool write_file(const std::filesystem::path& path, const std::string& content) {
-  std::ofstream file(path);
-  if (!file) {
-    REXLOG_ERROR("Failed to create file: {}", path.string());
-    return false;
-  }
-  file << content;
-  return true;
-}
-
 inline bool write_file_atomic(const std::filesystem::path& path, const std::string& content) {
   std::filesystem::path tmp = path;
   tmp += ".tmp";

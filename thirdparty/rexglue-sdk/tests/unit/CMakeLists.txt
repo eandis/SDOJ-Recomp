@@ -14,6 +14,7 @@ add_executable(unit_tests
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
     system/guest_path_test.cpp
+    system/achievement_manager_test.cpp
     system/function_dispatcher_test.cpp
     codegen/manifest_test.cpp
     rexglue/migration_scan_test.cpp
@@ -32,11 +33,24 @@ target_include_directories(unit_tests PRIVATE
 )
 
 target_link_libraries(unit_tests PRIVATE
-    rexcore
     rexcodegen
     rexruntime
     Catch2::Catch2WithMain
 )
+
+# ReXApp is shipped as source for recomp projects, rather than compiled into
+# rexui. Keep its SDK-consumer compilation path covered by the test build.
+add_library(rexapp_compile_test OBJECT
+    ${PROJECT_SOURCE_DIR}/src/ui/rex_app.cpp
+)
+target_link_libraries(rexapp_compile_test PRIVATE
+    rexruntime
+    rexui
+    rexinput
+    rexaudio
+    rexgraphics
+)
+add_dependencies(unit_tests rexapp_compile_test)
 
 # Strip Tracy/profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE

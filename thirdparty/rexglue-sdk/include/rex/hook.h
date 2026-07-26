@@ -220,11 +220,16 @@ class [[deprecated("Use rex::ppc::stack_push / stack_guard instead")]] StackFram
 //   symbol:   the exact linker symbol to reference
 //   callable: the name of the typed callable variable
 //   sig:      the function signature (e.g. u32(u32, u32))
+//
+// The callable is internal-linkage on purpose: on ELF, a namespace-scope C++
+// variable is not name-mangled, so an external-linkage callable named after a
+// guest function would collide with the generated weak function alias and
+// hijack its function table entry (MSVC decorates variables, hiding the bug).
 
-#define REX_IMPORT(symbol, callable, sig)         \
-  REX_EXTERN(symbol);                             \
-  inline rex::ppc::ImportFunction<sig> callable { \
-    symbol                                        \
+#define REX_IMPORT(symbol, callable, sig)                          \
+  REX_EXTERN(symbol);                                              \
+  [[maybe_unused]] static rex::ppc::ImportFunction<sig> callable { \
+    symbol                                                         \
   }
 
 //=============================================================================

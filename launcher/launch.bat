@@ -17,7 +17,8 @@ start "" /D "%~dp0" "%~dp0saidaioujou_recomp_tu1.exe" ^
   --vsync=false ^
   --fullscreen=true ^
   --video_mode_refresh_rate=60 ^
-  --xex_apply_patches=true ^
+  --gpu_plugin=xenos ^
+  --gpu_allow_invalid_fetch_constants=true ^
   --game_data_root="%~dp0game_data" ^
   --user_data_root="%~dp0user_data" ^
   --render_patch=true ^

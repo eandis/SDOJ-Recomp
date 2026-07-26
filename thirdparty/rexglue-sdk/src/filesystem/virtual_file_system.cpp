@@ -143,10 +143,10 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
     }
   } else {
     if (had_symlink) {
-      REXFS_WARN("VFS: entry not found for '{}' (via symlink '{}') on device '{}'", path,
-                 normalized_path, device->mount_path());
+      REXFS_DEBUG("VFS: entry not found for '{}' (via symlink '{}') on device '{}'", path,
+                  normalized_path, device->mount_path());
     } else {
-      REXFS_WARN("VFS: entry not found for '{}' on device '{}'", path, device->mount_path());
+      REXFS_DEBUG("VFS: entry not found for '{}' on device '{}'", path, device->mount_path());
     }
   }
 

@@ -14,9 +14,10 @@
 #include <time.h>
 
 #include <rex/assert.h>
+#include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/platform.h>
-#include <rex/string/util.h>
+#include <rex/string.h>
 #include <rex/system/util/xex2_info.h>
 #include <rex/system/xcontent.h>
 #include <rex/types.h>
@@ -411,7 +412,7 @@ struct XContentMetadata {
       return false;
     }
 
-    rex::string::util_copy_and_swap_truncating(str, value, countof(display_name_raw.chars[0]));
+    rex::string::copy_and_swap_truncating(str, value, rex::countof(display_name_raw.chars[0]));
     return true;
   }
 
@@ -437,18 +438,18 @@ struct XContentMetadata {
       return false;
     }
 
-    rex::string::util_copy_and_swap_truncating(str, value, countof(description_raw.chars[0]));
+    rex::string::copy_and_swap_truncating(str, value, rex::countof(description_raw.chars[0]));
     return true;
   }
 
   void set_publisher(const std::u16string_view value) {
-    rex::string::util_copy_and_swap_truncating(publisher_raw.chars, value,
-                                               countof(publisher_raw.chars));
+    rex::string::copy_and_swap_truncating(publisher_raw.chars, value,
+                                          rex::countof(publisher_raw.chars));
   }
 
   void set_title_name(const std::u16string_view value) {
-    rex::string::util_copy_and_swap_truncating(title_name_raw.chars, value,
-                                               countof(title_name_raw.chars));
+    rex::string::copy_and_swap_truncating(title_name_raw.chars, value,
+                                          rex::countof(title_name_raw.chars));
   }
 };
 static_assert_size(XContentMetadata, 0x93D6);

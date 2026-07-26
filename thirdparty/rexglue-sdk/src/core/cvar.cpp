@@ -7,18 +7,21 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <charconv>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <optional>
+#include <string_view>
 #include <unordered_map>
 
 #include <CLI/CLI.hpp>
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
+#include <rex/platform/env.h>
 
 #include <toml++/toml.hpp>
 
@@ -29,6 +32,10 @@ namespace {
 bool g_finalized = false;
 bool g_lifecycle_override = false;
 std::mutex g_mutex;
+
+// Set once cvar::Init has parsed the command line; later registrations are
+// from runtime-loaded modules and drain pending values.
+std::atomic<bool> g_init_done = false;
 
 // Recursive: FlagRegistrar chain methods re-enter; change callbacks invoked
 // from SetFlagByName must not mutate the registry.
@@ -48,38 +55,23 @@ std::unordered_map<std::string, size_t>& GetRegistryIndex() {
   return index;
 }
 
+// Values that arrived before their cvar was registered; runtime-loaded
+// modules register cvars long after Init/LoadConfig.
+struct PendingValues {
+  std::optional<std::string> cmdline;
+  std::optional<std::string> config;
+};
+
+std::unordered_map<std::string, PendingValues>& GetPendingValuesStorage() {
+  static std::unordered_map<std::string, PendingValues> pending;
+  return pending;
+}
+
 // Convert flag name to environment variable: gpu_vsync -> REX_GPU_VSYNC
 std::string FlagNameToEnvVar(std::string_view name) {
   std::string result = "REX_";
   for (char c : name) {
     result += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-  }
-  return result;
-}
-
-std::string EscapeTomlBasicString(std::string_view value) {
-  static constexpr char kHex[] = "0123456789ABCDEF";
-  std::string result;
-  result.reserve(value.size());
-  for (unsigned char c : value) {
-    switch (c) {
-      case '\\': result += "\\\\"; break;
-      case '"': result += "\\\""; break;
-      case '\b': result += "\\b"; break;
-      case '\t': result += "\\t"; break;
-      case '\n': result += "\\n"; break;
-      case '\f': result += "\\f"; break;
-      case '\r': result += "\\r"; break;
-      default:
-        if (c < 0x20) {
-          result += "\\u00";
-          result += kHex[c >> 4];
-          result += kHex[c & 0x0F];
-        } else {
-          result += static_cast<char>(c);
-        }
-        break;
-    }
   }
   return result;
 }
@@ -106,10 +98,14 @@ void ApplyTomlTable(const toml::table& table, const std::string& prefix) {
         continue;
       }
 
-      if (SetFlagByName(full_key, value_str)) {
+      if (GetFlagInfo(full_key) == nullptr) {
+        std::lock_guard lock(GetRegistryMutex());
+        GetPendingValuesStorage()[full_key].config = value_str;
+        REXLOG_DEBUG("Config: '{}' deferred (cvar not yet registered)", full_key);
+      } else if (SetFlagByName(full_key, value_str)) {
         REXLOG_DEBUG("Config: {} = {}", full_key, value_str);
       } else {
-        REXLOG_WARN("Config: unknown cvar '{}'", full_key);
+        REXLOG_WARN("Config: invalid value for cvar '{}'", full_key);
       }
     }
   }
@@ -213,6 +209,27 @@ std::optional<size_t> RegisterFlag(FlagEntry entry) {
   size_t pos = storage.size();
   index[entry.name] = pos;
   storage.push_back(std::move(entry));
+
+  // Late registration: apply pending values in the startup order used for
+  // static cvars (command line, then environment, then config file).
+  if (g_init_done) {
+    FlagEntry& stored = storage[pos];
+    auto& pending = GetPendingValuesStorage();
+    auto pending_it = pending.find(stored.name);
+    if (pending_it != pending.end() && pending_it->second.cmdline) {
+      stored.setter(*pending_it->second.cmdline);
+    }
+    auto env_value = rex::platform::env::get(FlagNameToEnvVar(stored.name));
+    if (env_value.has_value()) {
+      stored.setter(*env_value);
+    }
+    if (pending_it != pending.end()) {
+      if (pending_it->second.config) {
+        stored.setter(*pending_it->second.config);
+      }
+      pending.erase(pending_it);
+    }
+  }
   return pos;
 }
 
@@ -290,6 +307,29 @@ bool SetFlagByName(std::string_view name, std::string_view value) {
   }
 
   return success;
+}
+
+bool InvokeCommand(std::string_view name, std::string_view args) {
+  std::function<void(std::string_view)> cb;
+  {
+    std::lock_guard lock(GetRegistryMutex());
+    auto it = GetRegistryIndex().find(std::string(name));
+    if (it == GetRegistryIndex().end()) {
+      return false;
+    }
+    const auto& entry = GetRegistryStorage()[it->second];
+    if (entry.type != FlagType::Command) {
+      return false;
+    }
+    // Copy the callback out from under the lock; GetFlagInfo pointers are
+    // invalidated by registry mutation and a command may touch the registry.
+    cb = entry.command_callback;
+  }
+  if (!cb) {
+    return false;
+  }
+  cb(args);
+  return true;
 }
 
 std::string GetFlagByName(std::string_view name) {
@@ -452,7 +492,7 @@ std::string SerializeToTOML() {
   for (const auto& entry : GetRegistryStorage()) {
     if (entry.getter() != entry.default_value) {
       if (entry.type == FlagType::String) {
-        result += entry.name + " = \"" + EscapeTomlBasicString(entry.getter()) + "\"\n";
+        result += entry.name + " = \"" + entry.getter() + "\"\n";
       } else {
         result += entry.name + " = " + entry.getter() + "\n";
       }
@@ -467,7 +507,7 @@ std::string SerializeToTOML(std::string_view category) {
   for (const auto& entry : GetRegistryStorage()) {
     if (entry.category == category && entry.getter() != entry.default_value) {
       if (entry.type == FlagType::String) {
-        result += entry.name + " = \"" + EscapeTomlBasicString(entry.getter()) + "\"\n";
+        result += entry.name + " = \"" + entry.getter() + "\"\n";
       } else {
         result += entry.name + " = " + entry.getter() + "\n";
       }
@@ -515,7 +555,33 @@ std::vector<std::string> Init(int argc, char** argv) {
     fprintf(stderr, "cvar: CLI11  parse error: %s\n", e.what());
   }
 
-  return app.remaining();
+  // Stash unrecognized --options for cvars that register later. Supported
+  // forms: --name=value, --name (true), --no-name (false); a separated
+  // "--name value" pair is ambiguous with a positional, so never consumed.
+  std::vector<std::string> positional;
+  for (const auto& arg : app.remaining()) {
+    std::string_view view(arg);
+    if (!view.starts_with("--")) {
+      positional.push_back(arg);
+      continue;
+    }
+    view.remove_prefix(2);
+    std::string name;
+    std::string value = "true";
+    if (auto eq = view.find('='); eq != std::string_view::npos) {
+      name.assign(view.substr(0, eq));
+      value.assign(view.substr(eq + 1));
+    } else if (view.starts_with("no-")) {
+      name.assign(view.substr(3));
+      value = "false";
+    } else {
+      name.assign(view);
+    }
+    std::lock_guard lock(GetRegistryMutex());
+    GetPendingValuesStorage()[name].cmdline = std::move(value);
+  }
+  g_init_done = true;
+  return positional;
 }
 
 void LoadConfig(const std::filesystem::path& config_path) {
@@ -537,13 +603,13 @@ void ApplyEnvironment() {
   int count = 0;
   for (const auto& entry : GetRegistryStorage()) {
     std::string env_name = FlagNameToEnvVar(entry.name);
-    const char* env_value = std::getenv(env_name.c_str());
-    if (env_value != nullptr) {
-      if (entry.setter(env_value)) {
-        REXLOG_DEBUG("Env: {} = {} (from {})", entry.name, env_value, env_name);
+    auto env_value = rex::platform::env::get(env_name);
+    if (env_value.has_value()) {
+      if (entry.setter(*env_value)) {
+        REXLOG_DEBUG("Env: {} = {} (from {})", entry.name, *env_value, env_name);
         ++count;
       } else {
-        REXLOG_WARN("Env: failed to parse {} = {}", env_name, env_value);
+        REXLOG_WARN("Env: failed to parse {} = {}", env_name, *env_value);
       }
     }
   }
@@ -556,6 +622,10 @@ void ApplyEnvironment() {
 void FinalizeInit() {
   std::lock_guard lock(g_mutex);
   g_finalized = true;
+  for (const auto& [name, values] : GetPendingValuesStorage()) {
+    (void)values;
+    REXLOG_WARN("Config: unknown cvar '{}'", name);
+  }
   REXLOG_DEBUG("cvar: initialization finalized");
 }
 
@@ -597,6 +667,8 @@ ScopedLifecycleOverride::~ScopedLifecycleOverride() {
 void ResetAllForTesting() {
   ResetAllToDefaults();
   ClearPendingRestartFlags();
+  GetPendingValuesStorage().clear();
+  g_init_done = false;
   g_finalized = false;
 }
 

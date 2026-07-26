@@ -4,6 +4,7 @@
 set(REXUI_CORE_SOURCES
     graphics_upload_buffer_pool.cpp
     graphics_util.cpp
+    image_decode.cpp
     imgui_dialog.cpp
     imgui_drawer.cpp
     immediate_drawer.cpp
@@ -11,15 +12,22 @@ set(REXUI_CORE_SOURCES
     menu_item.cpp
     presenter.cpp
     renderdoc_api.cpp
+    sdl_virtual_key.cpp
     window.cpp
+    window_sdl.cpp
     windowed_app.cpp
     windowed_app_context.cpp
+    windowed_app_context_sdl.cpp
 )
 
 # Optional overlay dialogs
 set(REXUI_OVERLAY_SOURCES
+    overlay/achievement_icon_cache.cpp
+    overlay/achievement_toast.cpp
+    overlay/achievements_overlay.cpp
     overlay/debug_overlay.cpp
     overlay/console_overlay.cpp
+    overlay/console_commands.cpp
     overlay/settings_overlay.cpp
 )
 
@@ -54,18 +62,14 @@ if(REXGLUE_USE_D3D12)
     )
 endif()
 
-# Platform-specific sources
+# Platform-specific sources (windowing itself is SDL3, platform-independent)
 if(WIN32)
     set(REXUI_PLATFORM_SOURCES
         surface_win.cpp
-        window_win.cpp
-        windowed_app_context_win.cpp
     )
 else()
     set(REXUI_PLATFORM_SOURCES
         surface_gnulinux.cpp
-        window_gtk.cpp
-        windowed_app_context_gtk.cpp
     )
 endif()
 
@@ -93,13 +97,16 @@ target_include_directories(rexui PUBLIC
 )
 target_include_directories(rexui PRIVATE
     ${REXGLUE_ROOT}/src  # For ui/shaders/bytecode includes
+    ${REXGLUE_ROOT}/thirdparty/stb  # stb_image.h for icon decoding
 )
 
 target_link_libraries(rexui PUBLIC
     rexcore
     renderdoc
     imgui::imgui
+    SDL3::SDL3
 )
+target_link_libraries(rexui PRIVATE utf8cpp)
 
 if(REXGLUE_FIDELITYFX_SOURCE_DIR AND EXISTS "${REXGLUE_FIDELITYFX_SOURCE_DIR}/sdk/include")
     target_include_directories(rexui PRIVATE
@@ -131,22 +138,14 @@ if(REXGLUE_USE_VULKAN)
 endif()
 
 # Platform-specific dependencies
-if(WIN32)
-    target_link_libraries(rexui PUBLIC
-        dwmapi
-        Shcore
-    )
-else()
+if(NOT WIN32)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
     pkg_check_modules(X11_XCB REQUIRED x11-xcb)
 
     target_include_directories(rexui PRIVATE
-        ${GTK3_INCLUDE_DIRS}
         ${X11_XCB_INCLUDE_DIRS}
     )
     target_link_libraries(rexui PUBLIC
-        ${GTK3_LIBRARIES}
         ${X11_XCB_LIBRARIES}
     )
 endif()

@@ -14,6 +14,11 @@
 #include "glyphs.h"
 #include "ui.h"
 
+#include <array>
+#include <chrono>
+#include <ctime>
+
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
 namespace rexglue::ui {
@@ -90,6 +95,25 @@ void ProgressView::spinnerLoop() {
     spinner_cv_.wait_for(cv_lock, kSpinnerInterval,
                          [this] { return stop_spinner_.load(std::memory_order_acquire); });
   }
+}
+
+void ProgressView::binaryInfo(const rex::codegen::BinaryInfo& info) {
+  std::string filetime;
+  if (info.pe_time_date_stamp == 0) {
+    filetime = "(none)";
+  } else {
+    std::time_t t = static_cast<std::time_t>(info.pe_time_date_stamp);
+    filetime = fmt::format("{:%Y-%m-%d %H:%M:%S} UTC", fmt::gmtime(t));
+  }
+
+  std::array<KeyValueRow, 4> rows{{
+      {"Title ID", fmt::format("{:08X}", info.title_id)},
+      {"Media ID", fmt::format("{:08X}", info.media_id)},
+      {"Version", fmt::format("{}.{}.{}.{}", info.version_major, info.version_minor,
+                              info.version_build, info.version_qfe)},
+      {"Filetime", std::move(filetime)},
+  }};
+  KeyValueBlock(info.name, rows);
 }
 
 void ProgressView::moduleStarted(std::string_view name, std::size_t index, std::size_t total) {

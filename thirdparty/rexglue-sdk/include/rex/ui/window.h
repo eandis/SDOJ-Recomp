@@ -311,6 +311,11 @@ class Window {
   // the cursor instantly.
   void SetCursorVisibility(CursorVisibility new_cursor_visibility);
 
+  uint32_t GetCursorAutoHideDelayMs() const { return cursor_auto_hide_delay_ms_; }
+  // Idle time before kAutoHidden hides the cursor. Takes effect the next time
+  // the auto-hide timer is armed (the next mouse motion).
+  void SetCursorAutoHideDelayMs(uint32_t delay_ms) { cursor_auto_hide_delay_ms_ = delay_ms; }
+
   bool HasFocus() const { return HasActualState() ? has_focus_ : false; }
   // May be applied in a delayed way or dropped at all, HasFocus will not
   // necessarily be true immediately.
@@ -541,6 +546,13 @@ class Window {
   void OnBeforeClose(WindowDestructionReceiver& destruction_receiver);
   void OnAfterClose();
 
+  // Asks all listeners whether a user-initiated close may proceed. Returns
+  // false if any listener vetoed or the window was destroyed from a callback.
+  bool SendCloseRequestToListeners(WindowDestructionReceiver& destruction_receiver);
+
+  void OnMinimized(WindowDestructionReceiver& destruction_receiver);
+  void OnRestored(WindowDestructionReceiver& destruction_receiver);
+
   // These functions may usually also be called as part of the opening process
   // from within OpenImpl (directly or through the platform event handler
   // invoked during it) to actualize the state for the newly createad window,
@@ -686,6 +698,8 @@ class Window {
   uint32_t mouse_capture_request_count_ = 0;
 
   CursorVisibility cursor_visibility_ = CursorVisibility::kVisible;
+
+  uint32_t cursor_auto_hide_delay_ms_ = kDefaultCursorAutoHideMilliseconds;
 
   bool has_focus_ = false;
 

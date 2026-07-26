@@ -11,6 +11,7 @@
 #pragma once
 
 #include <rex/input/input_driver.h>
+#include <rex/ui/window.h>
 #include <rex/ui/window_listener.h>
 
 #include <cstdint>
@@ -37,7 +38,6 @@ class MnkInputDriver final : public InputDriver,
                         X_INPUT_KEYSTROKE* out_keystroke) override;
 
   void OnWindowAvailable(rex::ui::Window* window) override;
-  void OnActiveStateChanged() override;
 
   // WindowInputListener
   void OnKeyDown(rex::ui::KeyEvent& e) override;
@@ -70,6 +70,10 @@ class MnkInputDriver final : public InputDriver,
   int32_t prev_mouse_x_ = 0;
   int32_t prev_mouse_y_ = 0;
   bool mouse_captured_ = false;
+  // Cursor visibility to restore on capture release - the window owner may run
+  // an auto-hide policy that capture must not permanently override.
+  rex::ui::Window::CursorVisibility precapture_cursor_visibility_ =
+      rex::ui::Window::CursorVisibility::kVisible;
   bool has_focus_ = true;
 
   // Keystroke queue

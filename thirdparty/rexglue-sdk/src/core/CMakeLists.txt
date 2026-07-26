@@ -16,7 +16,6 @@ add_library(rexcore OBJECT
     mutex.cpp
     ring_buffer.cpp
     sha256.cpp
-    string.cpp
     string_buffer.cpp
     threading.cpp
     timer_queue.cpp
@@ -42,12 +41,14 @@ if(WIN32)
         mapped_memory_win.cpp
         math_msvc.cpp
         memory_win.cpp
+        platform/console_win.cpp
+        platform/env_win.cpp
         seh_win.cpp
         socket_win.cpp
-        string_win.cpp
         system_win.cpp
         threading_win.cpp
     )
+    target_compile_definitions(rexcore PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
     target_sources(rexcore PRIVATE
         atomic_posix.cpp
@@ -60,13 +61,25 @@ elseif(UNIX)
         mapped_memory_posix.cpp
         math_gcc.cpp
         memory_posix.cpp
+        platform/console_posix.cpp
+        platform/env_posix.cpp
         seh_posix.cpp
         socket_posix.cpp
-        string_posix.cpp
         system_posix.cpp
         threading_posix.cpp
     )
 endif()
+
+# Xenos data-format layer (stateless; headers under include/rex/graphics/).
+# The GPU emulation consuming it lives in the rexgpu-xenos plugin.
+target_sources(rexcore PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/graphics/xenos.cpp
+    ${PROJECT_SOURCE_DIR}/src/graphics/pipeline/texture/info.cpp
+    ${PROJECT_SOURCE_DIR}/src/graphics/pipeline/texture/info_formats.cpp
+    ${PROJECT_SOURCE_DIR}/src/graphics/pipeline/texture/extent.cpp
+    ${PROJECT_SOURCE_DIR}/src/graphics/pipeline/texture/util.cpp
+    ${PROJECT_SOURCE_DIR}/src/graphics/pipeline/texture/conversion.cpp
+)
 
 target_include_directories(rexcore PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
@@ -92,7 +105,15 @@ target_link_libraries(rexcore
     PRIVATE
         disruptorplus
         utf8cpp
+        xxHash::xxhash
 )
+
+if(REXGLUE_USE_D3D12)
+    target_compile_definitions(rexcore PUBLIC REX_HAS_D3D12=1)
+endif()
+if(REXGLUE_USE_VULKAN)
+    target_compile_definitions(rexcore PUBLIC REX_HAS_VULKAN=1)
+endif()
 
 if(REXGLUE_ENABLE_TRACY)
     target_link_libraries(rexcore PUBLIC TracyClient)

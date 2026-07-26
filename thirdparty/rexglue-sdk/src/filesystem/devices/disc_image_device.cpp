@@ -56,7 +56,10 @@ bool DiscImageDevice::Initialize() {
 
 void DiscImageDevice::Dump(string::StringBuffer* string_buffer) {
   auto global_lock = global_critical_region_.Acquire();
-  root_entry_->Dump(string_buffer, 0);
+  string_buffer->AppendFormat(
+      "{}: {} files, {} bytes (game_offset={:#x}, root_sector={}, root_size={}, host_size={})\n",
+      mount_path(), file_count_, total_file_size_, disc_info_.game_offset, disc_info_.root_sector,
+      disc_info_.root_size, disc_info_.host_size);
 }
 
 Entry* DiscImageDevice::ResolvePath(const std::string_view path) {

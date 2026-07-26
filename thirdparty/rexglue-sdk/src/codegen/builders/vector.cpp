@@ -277,8 +277,11 @@ bool build_vaddsws(BuilderContext& ctx) {
       "simde_mm_set1_epi32(0x7FFFFFFF));");
   // Blend: select sat_val where overflow MSB is set, else sum
   ctx.println(
-      "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_blendv_epi8(sum, sat_val, "
-      "overflow));",
+      "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, "
+      "simde_mm_castps_si128(simde_mm_blendv_ps("
+      "simde_mm_castsi128_ps(sum), "
+      "simde_mm_castsi128_ps(sat_val), "
+      "simde_mm_castsi128_ps(overflow))));",
       vD);
   ctx.println("\t}}");
   return true;
@@ -1321,46 +1324,15 @@ bool build_vpkd3d128(BuilderContext& ctx) {
 
     case 5:  // float16_4
     {
-      // NOTE: These combinations come from game traces (heuristic handling), not the official spec.
-      // The spec only defines the encoding, not the exact semantics of y (mask) and z (shift) here.
-      // Anyone reading this later should know it may need extending if new combos turn up in other
-      // games. Combinations observed so far: mask=2, shift=0 → write u16[3..0], zero u16[4..7]
-      // mask=2, shift=2 → write u16[7..4], zero u16[3..0] (first pass)
-      // mask=3, shift=0 → write u16[3..0] without zeroing (second pass, preserves the upper half)
+      // Pack 4 elements into 64 bits (4 x 16-bit floats)
+      // Guest element 0 goes to highest 16-bit position, element 3 to lowest
+      // Output u16 index = (3-i) + 2*shift for element i
+      if (ctx.insn.operands[3] != 2 || ctx.insn.operands[4] > 2)
+        REXCODEGEN_WARN("Unexpected float16_4 pack instruction at {:X}", ctx.base);
 
-      uint32_t mask = ctx.insn.operands[3];
-      uint32_t shift = ctx.insn.operands[4];
-
-      // Guard fix: The shift bound was too loose (shift=3 would cause dstIdx to reach 9, an OOB
-      // store). We also explicitly reject shift == 1 since the clear block below only handles 0
-      // and 2. Furthermore, we explicitly warn on unexpected mask values (e.g., 0, 1) to avoid
-      // silent fallthroughs and silently generating miscompiled code.
-      if ((shift != 0 && shift != 2) || (mask != 2 && mask != 3)) {
-        REXCODEGEN_WARN("Unexpected float16_4 pack instruction at {:X} (mask={}, shift={})",
-                        ctx.base, mask, shift);
-        // Emits a debug trap in the generated code to catch this at runtime.
-        ctx.println("\t__builtin_debugtrap();");
-        return true;
-      }
-
-      // mask=2: before writing, clear the half that will NOT be written.
-      // Shift is guaranteed to be 0 or 2 at this point due to the guard above.
-      if (mask == 2) {
-        // Optimization: Emit a single u64 write instead of two u32 writes.
-        // shift=0 → clears upper half u64[1]
-        // shift=2 → clears lower half u64[0]
-        size_t clearU64Start = (shift == 0) ? 1 : 0;
-        ctx.println("\t{}.u64[{}] = 0;", ctx.v(ctx.insn.operands[0]), clearU64Start);
-      }
-
-      // Invariant: dstIdx must stay under 8 (valid u16 lanes are 0..7).
-      // Capping the shift to 0 or 2 in the guard check above ensures this is safe:
-      // it restricts the max dstIdx to (3 - 0) + (2 * 2) = 7.
-      // Do not widen the shift bounds without adjusting this logic.
       for (size_t i = 0; i < 4; i++) {
-        size_t srcIdx = 3 - i;
-        size_t dstIdx = (3 - i) + (2 * shift);
-
+        size_t srcIdx = 3 - i;  // Guest element i is at host array index 3-i
+        size_t dstIdx = (3 - i) + (2 * ctx.insn.operands[4]);  // Output also reversed
         ctx.println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.temp(), ctx.v(ctx.insn.operands[1]),
                     srcIdx);
         ctx.println(

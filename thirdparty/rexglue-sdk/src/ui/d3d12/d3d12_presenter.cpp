@@ -363,8 +363,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
     }
     bool swap_chain_resized = SUCCEEDED(paint_context_.swap_chain->ResizeBuffers(
         0, UINT(new_swap_chain_width), UINT(new_swap_chain_height), DXGI_FORMAT_UNKNOWN,
-        DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT |
-            (paint_context_.swap_chain_allows_tearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0)));
+        paint_context_.swap_chain_allows_tearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0));
     if (swap_chain_resized) {
       for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
         if (FAILED(paint_context_.swap_chain->GetBuffer(
@@ -408,7 +407,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
             : DXGI_SCALING_STRETCH;
     swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-    swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    swap_chain_desc.Flags = 0;
     if (REXCVAR_GET(d3d12_allow_variable_refresh_rate_and_tearing) && dxgi_supports_tearing_) {
       // Allow tearing in borderless fullscreen to support variable refresh
       // rate.
@@ -427,9 +426,8 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
           return SurfacePaintConnectResult::kFailure;
         }
         // Disable automatic Alt+Enter handling - DXGI fullscreen doesn't
-        // support ALLOW_TEARING, and using custom fullscreen in ui::Win32Window
-        // anyway as with Alt+Enter the menu is kept, state changes are tracked
-        // better, and nothing is presented for some reason.
+        // support ALLOW_TEARING, and the window implementation provides
+        // borderless fullscreen anyway with better state tracking.
         dxgi_factory->MakeWindowAssociation(surface_hwnd, DXGI_MWA_NO_ALT_ENTER);
       } break;
 #endif
@@ -444,11 +442,6 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
       REXLOG_ERROR(
           "D3D12Presenter: Failed to get version 3 of the swap chain "
           "interface");
-      return SurfacePaintConnectResult::kFailure;
-    }
-    if (FAILED(paint_context_.swap_chain->SetMaximumFrameLatency(1))) {
-      REXLOG_ERROR("D3D12Presenter: Failed to set maximum frame latency");
-      paint_context_.DestroySwapChain();
       return SurfacePaintConnectResult::kFailure;
     }
     // From now on, in case of any failure, DestroySwapChain must be called

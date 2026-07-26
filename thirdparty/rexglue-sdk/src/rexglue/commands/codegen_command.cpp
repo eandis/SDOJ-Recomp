@@ -13,8 +13,8 @@
 #include "migration_scan.h"
 #include "template_utils.h"
 
+#include <algorithm>
 #include <filesystem>
-#include <fstream>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -35,6 +35,48 @@ namespace rexglue::cli {
 namespace {
 
 namespace fs = std::filesystem;
+
+// Compare dot-separated numeric version strings (e.g. "0.7.5"). Trailing
+// pre-release/build metadata after '-' or '+' is ignored. Returns true when
+// lhs orders strictly before rhs.
+bool VersionLess(std::string_view lhs, std::string_view rhs) {
+  auto parse = [](std::string_view s) {
+    std::vector<unsigned> parts;
+    unsigned value = 0;
+    bool in_number = false;
+    for (char c : s) {
+      if (c >= '0' && c <= '9') {
+        value = value * 10 + static_cast<unsigned>(c - '0');
+        in_number = true;
+        continue;
+      }
+      if (in_number)
+        parts.push_back(value);
+      value = 0;
+      in_number = false;
+      if (c == '-' || c == '+')
+        break;
+    }
+    if (in_number)
+      parts.push_back(value);
+    return parts;
+  };
+  auto a = parse(lhs);
+  auto b = parse(rhs);
+  for (std::size_t i = 0; i < std::max(a.size(), b.size()); ++i) {
+    unsigned va = i < a.size() ? a[i] : 0;
+    unsigned vb = i < b.size() ? b[i] : 0;
+    if (va != vb)
+      return va < vb;
+  }
+  return false;
+}
+
+// The upgrade scan only runs when the installed SDK is newer than the version
+// that last generated this project (or when the project was never stamped).
+bool MigrationNeeded(std::string_view last_codegen_version, std::string_view installed_version) {
+  return last_codegen_version.empty() || VersionLess(last_codegen_version, installed_version);
+}
 
 struct ActionStrings {
   std::string_view verb;
@@ -62,17 +104,7 @@ bool ApplyEntry(const OverwriteEntry& entry) {
           return false;
         }
       }
-      std::ofstream out(entry.path);
-      if (!out) {
-        REXLOG_ERROR("Failed to open for write: {}", entry.path.string());
-        return false;
-      }
-      out << entry.rendered_content;
-      if (!out.good()) {
-        REXLOG_ERROR("Failed to write: {}", entry.path.string());
-        return false;
-      }
-      return true;
+      return write_file_atomic(entry.path, entry.rendered_content);
     }
     case OverwriteAction::Delete:
       if (!fs::exists(entry.path))
@@ -302,7 +334,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
 
   fs::path manifest_path;
   ManifestSummary summary;
-  const std::string current_version = REXGLUE_VERSION_NUMERIC;
+  const std::string current_version = REXGLUE_VERSION_FLOOR;
 
   auto append_findings = [&](MigrationFindings findings) {
     post_plan.insert(post_plan.end(), std::make_move_iterator(findings.rewrites.begin()),
@@ -317,8 +349,10 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
     if (!loaded)
       return Err<void>(loaded.error());
     summary = std::move(*loaded);
-    append_findings(ScanProjectMigrations(manifest_path.parent_path(), summary.project_name,
-                                          current_version, summary.entrypoint_out_dir));
+    if (MigrationNeeded(summary.sdk_version, current_version)) {
+      append_findings(ScanProjectMigrations(manifest_path.parent_path(), summary.project_name,
+                                            current_version, summary.entrypoint_out_dir));
+    }
   } else {
     fs::path legacy_path = config_path;
     auto converted = ConvertLegacyConfig(legacy_path);
@@ -339,8 +373,10 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
       if (!loaded)
         return Err<void>(loaded.error());
       summary = std::move(*loaded);
-      append_findings(ScanProjectMigrations(manifest_path.parent_path(), summary.project_name,
-                                            current_version, summary.entrypoint_out_dir));
+      if (MigrationNeeded(summary.sdk_version, current_version)) {
+        append_findings(ScanProjectMigrations(manifest_path.parent_path(), summary.project_name,
+                                              current_version, summary.entrypoint_out_dir));
+      }
     } else {
       from_legacy = true;
       pre_plan.push_back({manifest_path, std::move(converted->manifest_content),

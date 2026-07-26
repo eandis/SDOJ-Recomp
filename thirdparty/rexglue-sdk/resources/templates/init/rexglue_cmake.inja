@@ -41,7 +41,7 @@ endif()
 
 # Configure a rexglue target with SDK libraries and platform settings.
 # Call after add_executable() in your CMakeLists.txt.
-# Usage: rexglue_setup_target(<target>)
+# Usage: rexglue_setup_target(<target> [GPU_PLUGINS xenos])
 macro(rexglue_setup_target target_name)
     target_sources({{ cmake_var("target_name") }} PRIVATE {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }})
     target_include_directories({{ cmake_var("target_name") }} PRIVATE
@@ -50,7 +50,12 @@ macro(rexglue_setup_target target_name)
         {{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}
     )
     target_link_libraries({{ cmake_var("target_name") }} PRIVATE rex::runtime)
-    rexglue_configure_target({{ cmake_var("target_name") }})
+    if(EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/metadata/icons")
+        rexglue_embed_metadata({{ cmake_var("target_name") }}
+            DIRECTORY "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/metadata/icons"
+            PREFIX "icons")
+    endif()
+    rexglue_configure_target({{ cmake_var("target_name") }} {{ cmake_var("ARGN") }})
 endmacro()
 
 # Include DLL module shared library targets if codegen has generated them

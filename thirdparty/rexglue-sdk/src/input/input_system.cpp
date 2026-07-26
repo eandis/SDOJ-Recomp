@@ -57,12 +57,6 @@ void InputSystem::SetActiveCallback(std::function<bool()> callback) {
   }
 }
 
-void InputSystem::RefreshActiveState() {
-  for (auto& driver : drivers_) {
-    driver->OnActiveStateChanged();
-  }
-}
-
 X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
                                       X_INPUT_CAPABILITIES* out_caps) {
   SCOPE_profile_cpu_f("hid");

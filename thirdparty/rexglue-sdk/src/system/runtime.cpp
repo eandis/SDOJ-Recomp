@@ -31,7 +31,8 @@
 REXCVAR_DEFINE_STRING(game_data_root, "", "Runtime", "Override game data path");
 REXCVAR_DEFINE_STRING(user_data_root, "", "Runtime", "Override user data path");
 REXCVAR_DEFINE_STRING(update_data_root, "", "Runtime", "Override update data path");
-REXCVAR_DEFINE_STRING(cache_path, "", "Runtime", "Override shader cache path");
+REXCVAR_DEFINE_STRING(cache_root, "", "Runtime", "Override shader cache path");
+REXCVAR_DEFINE_STRING(metadata_root, "", "Runtime", "Override metadata path");
 
 namespace rex {
 
@@ -45,14 +46,46 @@ Runtime* Runtime::instance() {
 Runtime::Runtime(const std::filesystem::path& game_data_root,
                  const std::filesystem::path& user_data_root,
                  const std::filesystem::path& update_data_root,
-                 const std::filesystem::path& cache_root)
+                 const std::filesystem::path& cache_root,
+                 const std::filesystem::path& metadata_root)
     : game_data_root_(game_data_root),
       user_data_root_(user_data_root.empty() ? game_data_root : user_data_root),
       update_data_root_(update_data_root),
-      cache_root_(cache_root) {}
+      cache_root_(cache_root),
+      metadata_root_(metadata_root) {}
 
 Runtime::~Runtime() {
   Shutdown();
+}
+
+std::optional<std::filesystem::path> Runtime::FindMetadataPath(
+    const std::filesystem::path& relative_path) const {
+  if (!metadata_root_.empty()) {
+    std::filesystem::path candidate = metadata_root_ / relative_path;
+    std::error_code ec;
+    if (std::filesystem::exists(candidate, ec)) {
+      return candidate;
+    }
+    return std::nullopt;
+  }
+
+  const std::filesystem::path candidates[] = {
+      game_data_root_ / "metadata" / relative_path,
+      game_data_root_.parent_path() / "metadata" / relative_path,
+      game_data_root_ / relative_path,
+  };
+  for (const auto& candidate : candidates) {
+    std::error_code ec;
+    if (std::filesystem::exists(candidate, ec)) {
+      return candidate;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<EmbeddedMetadataAsset> Runtime::FindEmbeddedMetadata(
+    const std::filesystem::path& relative_path) const {
+  return FindEmbeddedMetadataAsset(relative_path);
 }
 
 X_STATUS Runtime::Setup(RuntimeConfig config) {

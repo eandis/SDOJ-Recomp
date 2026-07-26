@@ -172,7 +172,7 @@ class D3D12Presenter final : public Presenter {
     PaintContext(const PaintContext& paint_context) = delete;
     PaintContext& operator=(const PaintContext& paint_context) = delete;
 
-    static constexpr uint32_t kSwapChainBufferCount = 2;
+    static constexpr uint32_t kSwapChainBufferCount = 3;
 
     enum RTVIndex : UINT {
       // Swap chain buffers - updated when creating the swap chain

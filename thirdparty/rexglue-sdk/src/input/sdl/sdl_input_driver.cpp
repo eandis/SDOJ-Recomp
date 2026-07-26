@@ -174,7 +174,7 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state)
   auto is_active = this->is_active();
 
   if (is_active) {
-    SDL_UpdateGamepads();
+    QueueControllerUpdate();
   }
 
   auto guard = DrainAndLock();

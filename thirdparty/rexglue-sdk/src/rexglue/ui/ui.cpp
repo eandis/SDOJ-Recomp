@@ -22,21 +22,8 @@
 #include <fmt/format.h>
 #include <spdlog/details/log_msg.h>
 
-#ifdef _WIN32
-#include <io.h>
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#define rexglue_isatty(fd) _isatty(fd)
-#define rexglue_fileno(stream) _fileno(stream)
-#else
-#include <unistd.h>
-#define rexglue_isatty(fd) isatty(fd)
-#define rexglue_fileno(stream) fileno(stream)
-#endif
-
 #include <rex/logging.h>
+#include <rex/platform/console.h>
 
 namespace rexglue::ui {
 
@@ -52,7 +39,7 @@ void RequireGlobalSink() {
 }
 
 bool StdinIsTty() {
-  return rexglue_isatty(rexglue_fileno(stdin)) != 0;
+  return rex::platform::console::is_tty(stdin);
 }
 
 std::string_view LevelLetter(spdlog::level::level_enum lvl) {
@@ -219,18 +206,12 @@ void Init(const InitOptions& opts) {
   g_sink = g_sink_ptr.get();
   rex::ReplaceConsoleSink(g_sink_ptr);
 
-#ifdef _WIN32
   if (opts.tty) {
-    SetConsoleOutputCP(CP_UTF8);
+    rex::platform::console::set_utf8_output_codepage();
     if (opts.color) {
-      HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-      DWORD mode = 0;
-      if (h != INVALID_HANDLE_VALUE && GetConsoleMode(h, &mode)) {
-        SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-      }
+      rex::platform::console::enable_ansi_escapes(stderr);
     }
   }
-#endif
 }
 
 void Shutdown() {

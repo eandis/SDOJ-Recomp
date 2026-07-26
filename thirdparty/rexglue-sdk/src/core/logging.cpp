@@ -25,6 +25,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+#include <rex/platform/env.h>
 
 #if REX_PLATFORM_WIN32
 #include <spdlog/sinks/msvc_sink.h>
@@ -287,6 +288,13 @@ void ShutdownLogging() {
   g_early_initialized = false;
 }
 
+void FlushLogging() {
+  std::lock_guard lock(g_mutex);
+  for (auto& entry : g_registry)
+    if (entry.logger)
+      entry.logger->flush();
+}
+
 LogCategoryId RegisterLogCategory(const char* name) {
   std::lock_guard lock(g_mutex);
 
@@ -503,11 +511,11 @@ LogConfig BuildLogConfig(const char* log_file, const std::string& cli_level,
   config.default_level = kDefaultLogLevel;
 
   // Environment variable
-  if (const char* env_level = std::getenv("REX_LOG_LEVEL")) {
-    if (auto level = ParseLogLevel(env_level))
+  if (auto env_level = rex::platform::env::get("REX_LOG_LEVEL")) {
+    if (auto level = ParseLogLevel(*env_level))
       config.default_level = *level;
-  } else if (const char* env_level2 = std::getenv("SPDLOG_LEVEL")) {
-    if (auto level = ParseLogLevel(env_level2))
+  } else if (auto env_level2 = rex::platform::env::get("SPDLOG_LEVEL")) {
+    if (auto level = ParseLogLevel(*env_level2))
       config.default_level = *level;
   }
 

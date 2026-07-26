@@ -1255,8 +1255,10 @@ bool isBlockTerminator(const DecodedInsn& insn, uint32_t addr, const CodeRegion&
 
   // bcctr (indirect branch via CTR)
   if (insn.opcode == Opcode::bcctr || insn.opcode == Opcode::bcctrl) {
-    // bcctrl is call, bcctr is terminator
-    return insn.opcode == Opcode::bcctr;
+    // bcctrl is a call. An unconditional bcctr (bctr, BO == 20) is a terminator,
+    // but a conditional bcctr (e.g. bnectr/beqctr) falls through to the next
+    // instruction when its condition is not met, so it does not end the block.
+    return insn.opcode == Opcode::bcctr && !isConditional(insn);
   }
 
   // Unconditional branch
@@ -1810,10 +1812,10 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
 // Block Discovery
 //=============================================================================
 
-BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
-                                    const CodeRegion& containingRegion,
-                                    const std::unordered_set<uint32_t>& knownFunctions,
-                                    uint32_t pdataSize) {
+BlockDiscoveryResult discoverBlocks(
+    DecodedBinary& decoded, uint32_t entryPoint, const CodeRegion& containingRegion,
+    const std::unordered_set<uint32_t>& knownFunctions, uint32_t pdataSize,
+    const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables) {
   BlockDiscoveryResult result;
   std::unordered_set<uint32_t> visited;
   std::unordered_set<uint32_t> blockStarts;
@@ -1898,21 +1900,77 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
           // blr - end of function path
           block.size = addr - blockStart + 4;
           break;
+        } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr && isConditional(*insn)) {
+          // Conditional bcctr (e.g. bnectr/beqctr): branches to CTR when the
+          // condition is met, otherwise falls through to the next instruction.
+          // Record the fall-through and continue the linear scan (mirrors the
+          // conditional-branch case below) so the rest of the function is not
+          // dropped. The CTR target is indirect and has no static label.
+          uint32_t fallthrough = addr + 4;
+          if (isInternalTarget(fallthrough)) {
+            result.labels.insert(fallthrough);
+            if (!visited.contains(fallthrough) && !blockStarts.contains(fallthrough)) {
+              blockStarts.insert(fallthrough);
+              worklist.push(fallthrough);
+            }
+          }
+          // Do not break: continue scanning the fall-through path.
         } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr) {
-          // bctr - try to detect jump table
+          // Unconditional bctr - prefer a manually configured table, then try
+          // automatic detection. Manual tables are authoritative because they
+          // are commonly needed when the compiler emits a table without an
+          // adjacent bounds check.
           REXCODEGEN_TRACE("discoverBlocks: bctr at 0x{:08X} in func 0x{:08X}, funcEnd=0x{:08X}",
                            addr, entryPoint, funcEnd);
-          auto jt = detectJumpTable(decoded, addr, containingRegion, entryPoint, funcEnd);
+          std::optional<JumpTable> jt;
+          bool jtIsManual = false;
+          if (manualSwitchTables) {
+            auto manualIt = manualSwitchTables->find(addr);
+            if (manualIt != manualSwitchTables->end()) {
+              jt = manualIt->second;
+              jtIsManual = true;
+              REXCODEGEN_TRACE(
+                  "discoverBlocks: using manual jump table at bctr 0x{:08X} with {} targets", addr,
+                  jt->targets.size());
+            }
+          }
+          if (!jt) {
+            jt = detectJumpTable(decoded, addr, containingRegion, entryPoint, funcEnd);
+          }
           if (jt) {
             REXCODEGEN_TRACE("discoverBlocks: detected jump table at bctr 0x{:08X} with {} targets",
                              addr, jt->targets.size());
             result.jumpTables.push_back(*jt);
-            // Jump table targets are definitionally part of this function
-            // Extend funcEnd if any target exceeds it (within region bounds)
-            // This handles out-of-line switch case code
             for (uint32_t t : jt->targets) {
               if (t == 0)
                 continue;  // sentinel from null-padding detection
+
+              // A jump table target may tail-dispatch to another known
+              // function; don't import that function's blocks into this one
+              // (mirrors isInternalTarget's treatment of regular branches,
+              // and now also applies to auto-detected table targets, not
+              // just manual ones).
+              if (t != entryPoint && knownFunctions.contains(t)) {
+                if (jtIsManual) {
+                  // A manually configured table is authoritative, so a drop
+                  // here likely means the target was mis-registered as a
+                  // function entry elsewhere. Warn so it's diagnosable
+                  // instead of silently discarding a user-provided target.
+                  REXCODEGEN_WARN(
+                      "discoverBlocks: manual jump table at bctr 0x{:08X} has target 0x{:08X} "
+                      "that is registered as a known function entry; dropping it",
+                      addr, t);
+                } else {
+                  REXCODEGEN_TRACE(
+                      "discoverBlocks: auto-detected jump table at bctr 0x{:08X} has target "
+                      "0x{:08X} that is a known function entry; dropping it",
+                      addr, t);
+                }
+                continue;
+              }
+
+              // Internal jump table targets are part of this function. Extend
+              // funcEnd for out-of-line case blocks within the code region.
               if (t >= funcEnd && t < containingRegion.end) {
                 funcEnd = t + 4;  // Extend to include this target
               }

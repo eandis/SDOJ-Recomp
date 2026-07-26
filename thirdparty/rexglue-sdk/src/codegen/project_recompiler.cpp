@@ -25,11 +25,13 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/codegen_writer.h>
 #include <rex/codegen/config.h>
+#include <rex/codegen/progress_reporter.h>
 #include <rex/codegen/template_registry.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/system/user_module.h>
+#include <rex/system/xex_module.h>
 
 #include <chrono>
 
@@ -46,6 +48,25 @@ std::string DeriveTargetNameFromFilePath(const std::string& file_path) {
   std::replace(name.begin(), name.end(), '.', '_');
   std::replace(name.begin(), name.end(), ' ', '_');
   return name;
+}
+
+void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
+                      const rex::runtime::XexModule& xex) {
+  if (!reporter)
+    return;
+  BinaryInfo info{};
+  info.name = display_name;
+  info.pe_time_date_stamp = xex.pe_time_date_stamp();
+  if (auto* exec = xex.opt_execution_info()) {
+    info.title_id = exec->title_id;
+    info.media_id = exec->media_id;
+    auto version = exec->version();
+    info.version_major = version.major;
+    info.version_minor = version.minor;
+    info.version_build = version.build;
+    info.version_qfe = version.qfe;
+  }
+  reporter->binaryInfo(info);
 }
 
 }  // namespace
@@ -138,11 +159,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   const auto& entryConfig = targeted[0].config;
   auto configDir = manifest_.manifestDir;
   fs::path entryXexPath = configDir / entryConfig.filePath;
-  if (!entryConfig.patchedFilePath.empty()) {
-    auto patched = configDir / entryConfig.patchedFilePath;
-    if (fs::exists(patched))
-      entryXexPath = patched;
-  }
   if (!fs::exists(entryXexPath)) {
     return Err<void>(ErrorCategory::IO,
                      fmt::format("Entrypoint XEX not found: {}", entryXexPath.string()));
@@ -190,15 +206,14 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                      fmt::format("Failed to load entrypoint XEX: {:#x}", rtStatus));
   }
 
+  auto entry_display_name = std::filesystem::path(targeted[0].config.filePath).filename().string();
+  ReportBinaryInfo(opts.reporter, entry_display_name,
+                   *runtime->kernel_state()->GetExecutableModule()->xex_module());
+
   std::vector<rex::system::object_ref<rex::system::UserModule>> dllModules;
   for (size_t i = 1; i < targeted.size(); ++i) {
     const auto& dllConfig = targeted[i].config;
     fs::path dllXexPath = configDir / dllConfig.filePath;
-    if (!dllConfig.patchedFilePath.empty()) {
-      auto patched = configDir / dllConfig.patchedFilePath;
-      if (fs::exists(patched))
-        dllXexPath = patched;
-    }
     if (!fs::exists(dllXexPath)) {
       return Err<void>(ErrorCategory::IO,
                        fmt::format("DLL XEX not found: {}", dllXexPath.string()));
@@ -221,6 +236,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     }
     REXCODEGEN_TRACE("Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
                      userMod->xex_module()->base_address());
+    auto dll_display_name = std::filesystem::path(targeted[i].config.filePath).filename().string();
+    ReportBinaryInfo(opts.reporter, dll_display_name, *userMod->xex_module());
     dllModules.push_back(std::move(userMod));
   }
 

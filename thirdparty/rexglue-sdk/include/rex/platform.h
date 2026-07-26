@@ -85,11 +85,6 @@
 #endif
 
 #if REX_PLATFORM_WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX  // Don't want windows.h including min/max macros.
-#endif            // REX_PLATFORM_WIN32
-
-#if REX_PLATFORM_WIN32
 #include <intrin.h>
 #elif REX_ARCH_AMD64
 #include <x86intrin.h>
@@ -139,20 +134,16 @@
 // Compiler capability macros
 #if REX_COMPILER_CLANG || REX_COMPILER_GNUC
 #define REX_HAS_BUILTIN_STRLEN 1
-#define REX_LACKS_FLOAT_FROM_CHARS 1
 #else
 #define REX_HAS_BUILTIN_STRLEN 0
-#define REX_LACKS_FLOAT_FROM_CHARS 0
 #endif
 
-namespace rex {
+namespace rex::platform {
 
 #if REX_PLATFORM_WIN32
-const char kPathSeparator = '\\';
+inline constexpr char kPathSeparator = '\\';
 #else
-const char kPathSeparator = '/';
+inline constexpr char kPathSeparator = '/';
 #endif  // REX_PLATFORM_WIN32
 
-const char kGuestPathSeparator = '\\';
-
-}  // namespace rex
+}  // namespace rex::platform

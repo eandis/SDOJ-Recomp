@@ -13,9 +13,22 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 namespace rex::codegen {
+
+/** Identifying fields from a loaded XEX, surfaced before recompilation work starts. */
+struct BinaryInfo {
+  std::string_view name;            ///< Display name (filename of the input XEX).
+  uint32_t title_id = 0;            ///< xex2_opt_execution_info.title_id
+  uint32_t media_id = 0;            ///< xex2_opt_execution_info.media_id
+  uint32_t version_major = 0;       ///< xex2_version.major (4 bits)
+  uint32_t version_minor = 0;       ///< xex2_version.minor (4 bits)
+  uint32_t version_build = 0;       ///< xex2_version.build (16 bits)
+  uint32_t version_qfe = 0;         ///< xex2_version.qfe   (8 bits)
+  uint32_t pe_time_date_stamp = 0;  ///< IMAGE_FILE_HEADER.TimeDateStamp (Unix epoch seconds)
+};
 
 /**
  * Optional progress callback invoked by the codegen pipeline at module
@@ -29,6 +42,9 @@ namespace rex::codegen {
 class ProgressReporter {
  public:
   virtual ~ProgressReporter() = default;
+
+  /** Identifying info for an input binary, emitted right after each XEX is loaded. */
+  virtual void binaryInfo(const BinaryInfo&) {}
 
   /** A new module's analysis+write cycle is starting. `index` is 0-based. */
   virtual void moduleStarted(std::string_view name, std::size_t index, std::size_t total) = 0;

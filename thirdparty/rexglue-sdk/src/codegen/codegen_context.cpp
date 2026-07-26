@@ -34,25 +34,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   }
   ctx.configDir_ = configPath.parent_path();
 
-  // Determine XEX path
-  std::filesystem::path xexPath;
-  if (!ctx.config_.patchedFilePath.empty()) {
-    xexPath = ctx.configDir_ / ctx.config_.patchedFilePath;
-    if (!std::filesystem::exists(xexPath)) {
-      REXCODEGEN_ERROR("Patched file not found: {}", xexPath.string());
-      xexPath.clear();
-    }
-  }
-
-  if (xexPath.empty()) {
-    xexPath = ctx.configDir_ / ctx.config_.filePath;
-
-    if (!ctx.config_.patchFilePath.empty()) {
-      REXCODEGEN_WARN(
-          "Patch file specified but XexPatcher not available. Use a pre-patched XEX file instead.");
-      REXCODEGEN_WARN("Ignoring patch file: {}", ctx.config_.patchFilePath);
-    }
-  }
+  std::filesystem::path xexPath = ctx.configDir_ / ctx.config_.filePath;
 
   // Resolve path
   if (std::filesystem::exists(xexPath)) {
