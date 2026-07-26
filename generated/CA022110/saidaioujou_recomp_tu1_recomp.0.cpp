@@ -4,11 +4,9 @@
 
 #include <atomic>
 #include <chrono>
-#include <mutex>
 #include <thread>
 
 extern uint32_t late_render_calls_to_skip;
-extern std::mutex render_buffer_lock;
 extern std::atomic<uint32_t> render_worker_state;
 
 namespace {
@@ -2057,12 +2055,7 @@ loc_88030DF0:
 	}
 	// bl 0x88033e88
 	ctx.lr = 0x88030DF4;
-	if (sdoj_patch_flags::render_enabled()) {
-		std::lock_guard<std::mutex> lock(render_buffer_lock);
-		sub_88033E88(ctx, base);
-	} else {
-		sub_88033E88(ctx, base);
-	}
+	sub_88033E88(ctx, base);
 loc_render_callback_exit:
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;

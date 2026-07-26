@@ -9112,7 +9112,7 @@ loc_88158C78:
 	// stw r28,8(r31)
 	REX_STORE_U32(ctx.r31.u32 + 8, ctx.r28.u32);
 	// li r10,780
-	ctx.r10.s64 = 780;
+	ctx.r10.s64 = REX_LOAD_U32(0x826335F4) == 13 ? 60 : 780; // 13 is training mode.
 	// stw r22,32(r31)
 	REX_STORE_U32(ctx.r31.u32 + 32, ctx.r22.u32);
 	// stw r11,0(r31)
@@ -17137,7 +17137,7 @@ loc_8815C4D0:
 	// stw r28,8(r31)
 	REX_STORE_U32(ctx.r31.u32 + 8, ctx.r28.u32);
 	// li r10,1020
-	ctx.r10.s64 = 1020;
+	ctx.r10.s64 = REX_LOAD_U32(0x826335F4) == 13 ? 60 : 1020; // 13 is training mode.
 	// stw r22,32(r31)
 	REX_STORE_U32(ctx.r31.u32 + 32, ctx.r22.u32);
 	// stw r11,0(r31)

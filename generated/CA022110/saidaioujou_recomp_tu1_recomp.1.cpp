@@ -4,14 +4,30 @@
 
 #include <array>
 #include <atomic>
-#include <mutex>
 
 uint32_t late_render_calls_to_skip = 0;
 std::atomic<bool> buffer_swapped_early{false};
-std::mutex render_buffer_lock;
 std::atomic<uint32_t> render_worker_state{0};
 
 namespace {
+
+uint32_t GetRenderServiceLock(uint8_t* base, uint32_t graphics_slot) {
+	const uint32_t graphics = REX_LOAD_U32(graphics_slot);
+	return graphics ? REX_LOAD_U32(graphics + 480) : 0;
+}
+
+void UseRenderServiceLock(PPCContext& ctx, uint8_t* base,
+		uint32_t render_service_lock, uint32_t vtable_offset) {
+	if (render_service_lock == 0) return;
+
+	const PPCContext saved_ctx = ctx;
+	ctx.r3.u64 = render_service_lock;
+	ctx.ctr.u64 = REX_LOAD_U32(
+		REX_LOAD_U32(render_service_lock) + vtable_offset);
+	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
+	ctx = saved_ctx;
+	ctx.fpscr.setcsr(ctx.fpscr.csr);
+}
 
 struct GameplayPad {
 	int8_t status = -1;
@@ -2151,17 +2167,18 @@ loc_88052160:
 		|| render_calls_needed == 2
 	)) {
 		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886FD218);
-		{
-			std::lock_guard<std::mutex> lock(render_buffer_lock);
-			ctx.lr = 0x88052184;
-			SwapRenderBuffer(ctx, base);
-			const bool buffer_swapped =
-				REX_LOAD_U32(0x886FD218) != old_buffer_swap_count;
-			if (buffer_swapped) {
-				buffer_swapped_early.store(
-					true, std::memory_order_release);
-			}
+		const uint32_t render_service_lock =
+			GetRenderServiceLock(base, 0x88881720);
+		UseRenderServiceLock(ctx, base, render_service_lock, 4);
+		ctx.lr = 0x88052184;
+		SwapRenderBuffer(ctx, base);
+		const bool buffer_swapped =
+			REX_LOAD_U32(0x886FD218) != old_buffer_swap_count;
+		if (buffer_swapped) {
+			buffer_swapped_early.store(
+				true, std::memory_order_release);
 		}
+		UseRenderServiceLock(ctx, base, render_service_lock, 8);
 		ctx.r3.u64 = render_calls_needed;
 	}
 	// lwz r11,5836(r16)
