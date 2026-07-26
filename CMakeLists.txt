@@ -28,8 +28,9 @@ rexglue_setup_target(saidaioujou_recomp_tu1)
 
 if(TARGET rexgpu-xenos)
     add_dependencies(saidaioujou_recomp_tu1 rexgpu-xenos)
-    add_custom_command(TARGET saidaioujou_recomp_tu1 POST_BUILD
+    add_custom_target(stage_rexgpu_xenos ALL
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:rexgpu-xenos>
-            $<TARGET_FILE_DIR:saidaioujou_recomp_tu1>)
+            $<TARGET_FILE_DIR:saidaioujou_recomp_tu1>
+        DEPENDS rexgpu-xenos)
 endif()
