@@ -44,6 +44,40 @@ std::recursive_mutex& GetRegistryMutex() {
   return m;
 }
 
+std::string EscapeTomlString(std::string_view value) {
+  std::string result;
+  result.reserve(value.size());
+  for (char c : value) {
+    switch (c) {
+      case '\\':
+        result += "\\\\";
+        break;
+      case '"':
+        result += "\\\"";
+        break;
+      case '\b':
+        result += "\\b";
+        break;
+      case '\t':
+        result += "\\t";
+        break;
+      case '\n':
+        result += "\\n";
+        break;
+      case '\f':
+        result += "\\f";
+        break;
+      case '\r':
+        result += "\\r";
+        break;
+      default:
+        result += c;
+        break;
+    }
+  }
+  return result;
+}
+
 // Flag registry - use functions to avoid static init order issues
 std::vector<FlagEntry>& GetRegistryStorage() {
   static std::vector<FlagEntry> registry;
@@ -492,7 +526,7 @@ std::string SerializeToTOML() {
   for (const auto& entry : GetRegistryStorage()) {
     if (entry.getter() != entry.default_value) {
       if (entry.type == FlagType::String) {
-        result += entry.name + " = \"" + entry.getter() + "\"\n";
+        result += entry.name + " = \"" + EscapeTomlString(entry.getter()) + "\"\n";
       } else {
         result += entry.name + " = " + entry.getter() + "\n";
       }
@@ -507,7 +541,7 @@ std::string SerializeToTOML(std::string_view category) {
   for (const auto& entry : GetRegistryStorage()) {
     if (entry.category == category && entry.getter() != entry.default_value) {
       if (entry.type == FlagType::String) {
-        result += entry.name + " = \"" + entry.getter() + "\"\n";
+        result += entry.name + " = \"" + EscapeTomlString(entry.getter()) + "\"\n";
       } else {
         result += entry.name + " = " + entry.getter() + "\n";
       }
