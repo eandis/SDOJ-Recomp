@@ -36,7 +36,17 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
 
   auto configDir = configPath.parent_path();
 
-  std::filesystem::path xexPath = configDir / tempConfig.filePath;
+  // Determine XEX path
+  std::filesystem::path xexPath;
+  if (!tempConfig.patchedFilePath.empty()) {
+    xexPath = configDir / tempConfig.patchedFilePath;
+    if (!std::filesystem::exists(xexPath)) {
+      xexPath.clear();
+    }
+  }
+  if (xexPath.empty()) {
+    xexPath = configDir / tempConfig.filePath;
+  }
 
   if (!std::filesystem::exists(xexPath)) {
     return Err<CodegenPipeline>(ErrorCategory::IO,

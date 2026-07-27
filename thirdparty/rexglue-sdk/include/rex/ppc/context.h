@@ -250,9 +250,13 @@ using PPCFPSCRRegister = rex::ppc::FPSCRRegister;
 
 struct alignas(0x40) PPCContext {
   PPCRegister r3;
+#if !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister r0;
+#endif
   PPCRegister r1;
+#if !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister r2;
+#endif
   PPCRegister r4;
   PPCRegister r5;
   PPCRegister r6;
@@ -260,9 +264,12 @@ struct alignas(0x40) PPCContext {
   PPCRegister r8;
   PPCRegister r9;
   PPCRegister r10;
+#if !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister r11;
   PPCRegister r12;
+#endif
   PPCRegister r13;
+#if !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCRegister r14;
   PPCRegister r15;
   PPCRegister r16;
@@ -281,12 +288,24 @@ struct alignas(0x40) PPCContext {
   PPCRegister r29;
   PPCRegister r30;
   PPCRegister r31;
+#endif
 
+#if !defined(REX_CONFIG_SKIP_LR)
   uint64_t lr;
+#endif
+#if !defined(REX_CONFIG_CTR_AS_LOCAL)
   PPCRegister ctr;
+#endif
+#if !defined(REX_CONFIG_XER_AS_LOCAL)
   PPCXERRegister xer;
+#endif
+#if !defined(REX_CONFIG_RESERVED_AS_LOCAL)
   PPCRegister reserved;
+#endif
+#if !defined(REX_CONFIG_SKIP_MSR)
   uint32_t msr = 0x200A000;
+#endif
+#if !defined(REX_CONFIG_CR_AS_LOCAL)
   PPCCRRegister cr0;
   PPCCRRegister cr1;
   PPCCRRegister cr2;
@@ -295,6 +314,7 @@ struct alignas(0x40) PPCContext {
   PPCCRRegister cr5;
   PPCCRRegister cr6;
   PPCCRRegister cr7;
+#endif
   PPCFPSCRRegister fpscr;
   uint8_t vscr_sat = 0;  // VSCR saturation flag (for vector ops)
 
@@ -306,7 +326,9 @@ struct alignas(0x40) PPCContext {
    */
   uint32_t last_indirect_target = 0;
 
+#if !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister f0;
+#endif
   PPCRegister f1;
   PPCRegister f2;
   PPCRegister f3;
@@ -320,6 +342,7 @@ struct alignas(0x40) PPCContext {
   PPCRegister f11;
   PPCRegister f12;
   PPCRegister f13;
+#if !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCRegister f14;
   PPCRegister f15;
   PPCRegister f16;
@@ -338,6 +361,7 @@ struct alignas(0x40) PPCContext {
   PPCRegister f29;
   PPCRegister f30;
   PPCRegister f31;
+#endif
 
   PPCVRegister v0;
   PPCVRegister v1;
@@ -353,6 +377,7 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v11;
   PPCVRegister v12;
   PPCVRegister v13;
+#if !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCVRegister v14;
   PPCVRegister v15;
   PPCVRegister v16;
@@ -371,6 +396,8 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v29;
   PPCVRegister v30;
   PPCVRegister v31;
+#endif
+#if !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCVRegister v32;
   PPCVRegister v33;
   PPCVRegister v34;
@@ -403,6 +430,8 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v61;
   PPCVRegister v62;
   PPCVRegister v63;
+#endif
+#if !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCVRegister v64;
   PPCVRegister v65;
   PPCVRegister v66;
@@ -467,7 +496,9 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v125;
   PPCVRegister v126;
   PPCVRegister v127;
+#endif
 
+#if !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   //--- Non-volatile register save/restore --------
   // Layout: r14-r31 (144) | f14-f31 (144) | v14-v31 (288) | v64-v127 (1024)
   // Total: 1600 bytes.  Buffer must be at least this large.
@@ -494,4 +525,9 @@ struct alignas(0x40) PPCContext {
     src += 18 * sizeof(PPCVRegister);
     std::memcpy(&v64, src, 64 * sizeof(PPCVRegister));
   }
+#else
+  static constexpr size_t kNonVolatileSaveSize = 0;
+  inline void SaveNonVolatiles(uint8_t*) const {}
+  inline void RestoreNonVolatiles(const uint8_t*) {}
+#endif
 };

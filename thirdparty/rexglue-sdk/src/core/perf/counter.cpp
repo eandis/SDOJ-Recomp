@@ -11,7 +11,6 @@
 #include <rex/perf/counter.h>
 
 #include <rex/cvar.h>
-#include <rex/filesystem.h>
 #include <rex/logging.h>
 
 #include <array>
@@ -137,7 +136,7 @@ void SetCsvLogPath(const std::string& path) {
   if (path.empty())
     return;
 
-  g_csv_file = rex::filesystem::OpenFile(rex::to_path(path), "w");
+  g_csv_file = std::fopen(path.c_str(), "w");
   if (!g_csv_file) {
     REXLOG_WARN("perf: failed to open CSV log: {}", path);
     g_csv_path.clear();

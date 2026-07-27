@@ -9,39 +9,30 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <chrono>
 #include <cstring>
-#include <filesystem>
 #include <string>
 
 #include <fmt/format.h>
+
 #include <rex/assert.h>
-#include <rex/image_info.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/stream.h>
-#include <rex/thread/atomic.h>
 #include <rex/string.h>
+#include <rex/string/util.h>
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/function_dispatcher.h>
-#include <chrono>
-#include <thread>
-
-#include <rex/system/flags.h>
 #include <rex/system/guest_path.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xmodule.h>
-#include <rex/system/xmutant.h>
 #include <rex/system/xnotifylistener.h>
 #include <rex/system/xobject.h>
-#include <rex/system/xsemaphore.h>
 #include <rex/system/xthread.h>
-#include <rex/system/xtimer.h>
 
 namespace rex::system {
 
@@ -252,66 +243,6 @@ util::XdbfGameData KernelState::module_xdbf(object_ref<UserModule> exec_module) 
     return db;
   }
   return util::XdbfGameData(nullptr, resource_size);
-}
-
-void KernelState::SetLoadedAchievements(std::vector<AchievementInfo> achievements) {
-  achievement_manager_.ReplaceAchievements(std::move(achievements));
-}
-
-AchievementListenerHandle KernelState::RegisterAchievementUnlockCallback(
-    AchievementUnlockCallback cb) {
-  return achievement_manager_.RegisterUnlockCallback(
-      [cb = std::move(cb)](const AchievementEvent& event) { cb(event.achievement); });
-}
-
-void KernelState::UnlockAchievement(uint32_t id) {
-  (void)achievement_manager_.UnlockAchievement(id, AchievementNotification::kShow);
-}
-
-bool KernelState::IsAchievementUnlocked(uint32_t id) const {
-  return achievement_manager_.IsUnlocked(id);
-}
-
-uint64_t KernelState::GetAchievementUnlockTime(uint32_t id) const {
-  return achievement_manager_.GetUnlockTime(id);
-}
-
-std::vector<AchievementInfo> KernelState::loaded_achievements() const {
-  return achievement_manager_.ListAchievements();
-}
-
-void KernelState::LoadAchievementsData() {
-  std::vector<AchievementInfo> achievements;
-
-  const util::XdbfGameData db = title_xdbf();
-  if (db.is_valid()) {
-    const XLanguage language =
-        db.GetExistingLanguage(static_cast<XLanguage>(REXCVAR_GET(user_language)));
-    for (const auto& entry : db.GetAchievements()) {
-      AchievementInfo info;
-      info.id = entry.id;
-      info.label = db.GetStringTableEntry(language, entry.label_id);
-      info.description = db.GetStringTableEntry(language, entry.description_id);
-      info.unachieved_description = db.GetStringTableEntry(language, entry.unachieved_id);
-      info.image_id = entry.image_id;
-      info.gamerscore = entry.gamerscore;
-      info.flags = entry.flags;
-      achievements.push_back(std::move(info));
-    }
-  }
-
-  SetLoadedAchievements(std::move(achievements));
-  if (auto metadata_path = emulator_->FindMetadataPath("achievements.toml")) {
-    achievement_manager_.LoadMetadataFile(*metadata_path);
-  }
-
-  // Set up the unlock save path and restore persisted state.
-  const auto user_root = emulator_->user_data_root();
-  if (!user_root.empty()) {
-    achievement_manager_.SetUnlockSavePath(user_root / "achievements" /
-                                           fmt::format("{:08X}.toml", title_id()));
-    achievement_manager_.LoadUnlockState();
-  }
 }
 
 uint32_t KernelState::process_type() const {
@@ -639,7 +570,8 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
       "xboxkrnl.exe", 0x01AF /* ExLoadedImageName */);
   if (export_entry) {
     char* variable_ptr = memory_->TranslateVirtual<char*>(export_entry->variable_ptr);
-    rex::string::copy_truncating(variable_ptr, executable_module_->path(), kExLoadedImageNameSize);
+    rex::string::util_copy_truncating(variable_ptr, executable_module_->path(),
+                                      kExLoadedImageNameSize);
   }
 
   // Spin up deferred dispatch worker.
@@ -685,8 +617,6 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
       REX_FATAL("Failed to create kernel dispatch thread (status {:#x})", create_status);
     }
   }
-
-  LoadAchievementsData();
 }
 
 void KernelState::LoadKernelModule(object_ref<KernelModule> kernel_module) {
@@ -755,7 +685,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
 
     {
       auto global_lock = global_critical_region_.Acquire();
-      auto [lib_it, inserted] = module_libraries_.emplace(lib_key, rex::platform::DynamicLibrary{});
+      auto [lib_it, inserted] = module_libraries_.emplace(lib_key, SharedLibrary{});
       if (!inserted) {
         REXSYS_ERROR("Recompiled module '{}' already loaded; refusing duplicate load", lib_key);
         object_table()->ReleaseHandle(module->handle());
@@ -763,39 +693,24 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
       }
     }
 
-    rex::platform::DynamicLibrary library_local;
-    if (!library_local.Load(std::filesystem::path(recomp->shared_lib_name),
-                            rex::platform::SymbolResolution::kImmediate)) {
+    SharedLibrary library_local;
+    if (!library_local.Load(recomp->shared_lib_name)) {
       REXSYS_ERROR("Failed to load shared library for module '{}'", recomp->pe_name);
     } else {
       auto register_func = reinterpret_cast<runtime::FunctionDispatcher::RegisterFn>(
-          library_local.GetRawSymbol("ReXModule_Register"));
-      using GetImageInfoFn = const rex::PPCImageInfo* (*)();
-      auto get_image_info =
-          reinterpret_cast<GetImageInfoFn>(library_local.GetRawSymbol("ReXModule_GetImageInfo"));
+          library_local.GetSymbol("ReXModule_Register"));
       if (!register_func) {
         REXSYS_ERROR("ReXModule_Register not found in '{}'", recomp->shared_lib_name);
-      } else if (!get_image_info) {
-        REXSYS_ERROR("ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
       } else {
         auto* xex = module->xex_module();
-        const auto* image_info = get_image_info();
-        if (!image_info) {
-          REXSYS_ERROR("ReXModule_GetImageInfo returned null for '{}'", recomp->shared_lib_name);
-        } else if (image_info->image_base != xex->base_address() ||
-                   image_info->image_size != xex->image_size()) {
-          REXSYS_ERROR(
-              "Recompiled module '{}' layout does not match loaded XEX "
-              "(DLL image={:08X}-{:08X}, XEX image={:08X}-{:08X})",
-              recomp->pe_name, image_info->image_base,
-              image_info->image_base + image_info->image_size, xex->base_address(),
-              xex->base_address() + xex->image_size());
+        auto* text = xex->GetPESection(".text");
+        if (!text) {
+          REXSYS_ERROR("Module '{}' has no .text section", recomp->pe_name);
         } else if (!function_dispatcher_->InitializeFunctionTable(
-                       image_info->code_base, image_info->code_size, image_info->image_base,
-                       image_info->image_size)) {
+                       text->address, text->size, xex->base_address(), xex->image_size())) {
           REXSYS_ERROR("InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
-          function_dispatcher_->RegisterModule(lib_key, image_info->code_base, register_func);
+          function_dispatcher_->RegisterModule(lib_key, text->address, register_func);
           auto global_lock = global_critical_region_.Acquire();
           auto lib_it = module_libraries_.find(lib_key);
           assert_true(lib_it != module_libraries_.end());
@@ -939,116 +854,43 @@ std::optional<KernelState::RecompiledModuleInfo> KernelState::FindRecompiledModu
   return std::nullopt;
 }
 
-void KernelState::SignalAllWaitableObjects() {
-  auto global_lock = global_critical_region_.Acquire();
-  auto objects = object_table_.GetAllObjects();
-  for (auto& obj : objects) {
-    switch (obj->type()) {
-      case XObject::Type::Event: {
-        auto* event = static_cast<XEvent*>(obj.get());
-        event->Set(0, false);
-        break;
-      }
-      case XObject::Type::Mutant: {
-        // ReleaseMutant reads the current thread; skip on non-kernel threads
-        // (host UI shutdown), where GetCurrentThread asserts.
-        if (XThread::IsInThread()) {
-          static_cast<XMutant*>(obj.get())->ReleaseMutant(0, false, false);
-        }
-        break;
-      }
-      case XObject::Type::Semaphore: {
-        auto* sem = static_cast<XSemaphore*>(obj.get());
-        (void)sem->ReleaseSemaphore(sem->maximum_count(), nullptr);
-        break;
-      }
-      case XObject::Type::Timer: {
-        auto* timer = static_cast<XTimer*>(obj.get());
-        timer->Cancel();
-        break;
-      }
-      default:
-        break;
-    }
-  }
-}
-
-void KernelState::WaitForThreadsToExit(const std::vector<object_ref<XThread>>& threads,
-                                       uint32_t timeout_ms) {
-  using clock = std::chrono::steady_clock;
-  auto deadline = clock::now() + std::chrono::milliseconds(timeout_ms);
-
-  for (;;) {
-    bool all_exited = true;
-    for (auto& thread : threads) {
-      if (thread->is_running()) {
-        all_exited = false;
-        break;
-      }
-    }
-    if (all_exited || clock::now() >= deadline) {
-      return;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-}
-
 void KernelState::TerminateTitle() {
   REXSYS_DEBUG("KernelState::TerminateTitle");
+  auto global_lock = global_critical_region_.Acquire();
 
-  constexpr uint32_t kCooperativeExitTimeoutMs = 200;
-
-  // Guest threads poll this flag in the kernel wait primitives
-  // (XThread::CheckTitleTermination) and self-exit.
-  terminating_title_.store(true, std::memory_order_release);
-
-  // Retained so a thread that wakes and exits below can't be freed mid-drain.
-  std::vector<object_ref<XThread>> target_threads;
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto& [id, thread] : threads_by_id_) {
-      if (!XThread::IsInThread(thread) && thread->is_guest_thread() && thread->is_running()) {
-        target_threads.push_back(retain_object(thread));
-      }
+  // Suspend all running guest threads so they stop touching shared state.
+  std::vector<XThread*> suspended_threads;
+  for (auto it = threads_by_id_.begin(); it != threads_by_id_.end(); ++it) {
+    if (!XThread::IsInThread(it->second) && it->second->is_guest_thread() &&
+        it->second->is_running()) {
+      it->second->thread()->Suspend();
+      suspended_threads.push_back(it->second);
     }
   }
 
-  // Wake blocked waiters: signal objects (non-alertable waiters) and a bare user
-  // callback per target (alertable waits/delays).
-  SignalAllWaitableObjects();
-  for (auto& thread : target_threads) {
-    thread->thread()->QueueUserCallback([] {});
+  // Terminate each suspended thread. Must drop the lock since Terminate waits.
+  global_lock.unlock();
+  for (auto* thread : suspended_threads) {
+    thread->Terminate(0);
   }
+  global_lock.lock();
 
-  WaitForThreadsToExit(target_threads, kCooperativeExitTimeoutMs);
-
-  // Stragglers are deliberately left running, never force-killed: TerminateThread
-  // orphans whatever host lock the thread holds (CRT heap, mutexes) and deadlocks
-  // teardown. Window close hard-exits and lets the OS reap them.
-
-  // Drop guest threads from the map.
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
-      if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
-        it = threads_by_id_.erase(it);
-      } else {
-        ++it;
-      }
+  // Remove all guest threads from the map.
+  for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
+    if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
+      it = threads_by_id_.erase(it);
+    } else {
+      ++it;
     }
   }
 
-  // Drop refs before the self-terminate below (which does not return) so they
-  // aren't leaked; reset the flag for relaunch.
-  target_threads.clear();
-  terminating_title_.store(false, std::memory_order_release);
-
-  // Self-terminate if called from a guest thread (e.g. XamLoaderTerminateTitle).
+  // If called from a guest thread, self-terminate last.
   if (XThread::IsInThread()) {
-    {
-      auto global_lock = global_critical_region_.Acquire();
-      threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
-    }
+    threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
+
+    // Now commit suicide (using Terminate, because we can't call into guest
+    // code anymore).
+    global_lock.unlock();
     XThread::GetCurrentThread()->Terminate(0);
   }
 }

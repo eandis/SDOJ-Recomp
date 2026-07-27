@@ -13,6 +13,7 @@
 #include "template_utils.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <fstream>
 #include <optional>
@@ -54,7 +55,7 @@ bool IsUnderGeneratedTree(const fs::path& project_root, const fs::path& target) 
   if (ec)
     return false;
   auto first = rel.begin();
-  return first != rel.end() && first->generic_string().starts_with("generated");
+  return first != rel.end() && first->generic_string() == "generated";
 }
 
 template <typename Accept, typename Visit>
@@ -123,7 +124,7 @@ std::string ExtractIncludeBasename(std::string_view target) {
   return std::string(pos == std::string_view::npos ? target : target.substr(pos + 1));
 }
 
-constexpr BreakingChangeRule kRules[] = {
+constexpr std::array<BreakingChangeRule, 47> kRules = {{
     {"PPC_HOOK", "REX_HOOK", ""},
     {"PPC_STUB", "REX_STUB", ""},
     {"PPC_STUB_LOG", "REX_STUB_LOG", ""},
@@ -172,8 +173,7 @@ constexpr BreakingChangeRule kRules[] = {
     {"PPC_STORE_U32", "REX_STORE_U32", ""},
     {"PPC_STORE_U64", "REX_STORE_U64", ""},
     {"PPC_MEMORY_SIZE", "REX_MEMORY_SIZE", ""},
-    {"cache_path", "cache_root", "renamed: cache_path cvar -> cache_root"},
-};
+}};
 
 bool ConfirmSingleArgAllocateThunk(std::string_view line) {
   auto name_pos = line.find("AllocateThunk");
@@ -201,15 +201,12 @@ bool ConfirmSingleArgAllocateThunk(std::string_view line) {
   return false;
 }
 
-constexpr CallSiteRule kCallSiteRules[] = {
+constexpr std::array<CallSiteRule, 2> kCallSiteRules = {{
     {"GetArgument(\"game_directory\")", "removed positional argument 'game_directory'", "",
      nullptr},
     {"AllocateThunk(", "single-arg AllocateThunk call", "second arg is now caller_address",
      ConfirmSingleArgAllocateThunk},
-    {"void RenameEntryInternal(", "Entry::RenameEntryInternal return type changed to X_STATUS",
-     "override now returns X_STATUS_SUCCESS on success (and a failure code on rename failure)",
-     nullptr},
-};
+}};
 
 using RuleIndex = std::unordered_map<std::string_view, const BreakingChangeRule*>;
 
@@ -305,11 +302,11 @@ std::string SummarizeRenames(const std::set<std::string>& reasons) {
 }  // namespace
 
 std::span<const BreakingChangeRule> DefaultBreakingChangeRules() {
-  return {std::begin(kRules), std::end(kRules)};
+  return {kRules.data(), kRules.size()};
 }
 
 std::span<const CallSiteRule> DefaultCallSiteRules() {
-  return {std::begin(kCallSiteRules), std::end(kCallSiteRules)};
+  return {kCallSiteRules.data(), kCallSiteRules.size()};
 }
 
 std::string RenderRexglueCmake(std::string_view project_name, std::string_view sdk_version,

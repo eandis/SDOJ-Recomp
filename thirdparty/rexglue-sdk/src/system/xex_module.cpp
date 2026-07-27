@@ -777,8 +777,6 @@ int XexModule::ReadPEHeaders() {
     return 1;
   }
 
-  pe_time_date_stamp_ = filehdr->TimeDateStamp;
-
 // Linker version - likely 8+
 // Could be useful for recognizing certain patterns
 // opthdr->MajorLinkerVersion; opthdr->MinorLinkerVersion;

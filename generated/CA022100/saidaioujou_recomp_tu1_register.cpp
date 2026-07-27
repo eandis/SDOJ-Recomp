@@ -4763,8 +4763,3 @@ void ReXModule_Register(rex::runtime::IModuleRegistrar* registrar) {
   registrar->SetFunction(0x88192690, __imp__NtDuplicateObject);
   registrar->SetFunction(0x881926A0, __imp__NtClose);
 }
-
-extern "C" REX_MODULE_EXPORT
-const rex::PPCImageInfo* ReXModule_GetImageInfo() {
-  return &PPCImageConfig;
-}

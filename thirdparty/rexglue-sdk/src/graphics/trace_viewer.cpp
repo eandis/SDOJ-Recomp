@@ -14,8 +14,6 @@
 #include <cinttypes>
 #include <string>
 
-#include <fmt/format.h>
-
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/filesystem.h>
@@ -1677,9 +1675,7 @@ void TraceViewer::DrawStateUI() {
         xe_gpu_vertex_fetch_t fetch = regs.GetVertexFetch(vertex_binding.fetch_constant);
         assert_true(fetch.endian == xenos::Endian::k8in32);
         char tree_root_id[32];
-        auto fmt_result = fmt::format_to_n(tree_root_id, sizeof(tree_root_id) - 1,
-                                           "#vertices_root_{}", vertex_binding.fetch_constant);
-        *fmt_result.out = '\0';
+        sprintf(tree_root_id, "#vertices_root_%d", vertex_binding.fetch_constant);
         if (ImGui::TreeNode(tree_root_id, "vf%d: 0x%.8X (%db), %s", vertex_binding.fetch_constant,
                             fetch.address << 2, fetch.size * 4,
                             kEndiannessNames[int(fetch.endian)])) {

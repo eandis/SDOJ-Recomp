@@ -103,9 +103,6 @@ class Entry {
   bool is_read_only() const;
 
   Entry* GetChild(const std::string_view name);
-  /// Walks @p path component-by-component starting from this entry.
-  /// Returns this entry when @p path is empty (i.e. zero path components),
-  /// nullptr if any intermediate component does not exist.
   Entry* ResolvePath(const std::string_view path);
 
   const std::vector<std::unique_ptr<Entry>>& children() const { return children_; }
@@ -116,7 +113,7 @@ class Entry {
   bool Delete(Entry* entry);
   bool Delete();
   virtual bool Truncate() { return false; }
-  X_STATUS Rename(const std::filesystem::path& file_path);
+  void Rename(const std::filesystem::path& file_path);
   void Touch();
 
   // If successful, out_file points to a new file. When finished, call
@@ -146,9 +143,8 @@ class Entry {
     (void)entry;
     return false;
   }
-  virtual X_STATUS RenameEntryInternal(const std::vector<std::string_view>& path_parts) {
+  virtual void RenameEntryInternal(const std::vector<std::string_view>& path_parts) {
     (void)path_parts;
-    return X_STATUS_NOT_SUPPORTED;
   }
 
   rex::thread::global_critical_region global_critical_region_;

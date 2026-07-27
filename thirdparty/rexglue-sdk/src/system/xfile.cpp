@@ -292,7 +292,8 @@ X_STATUS XFile::SetLength(size_t length) {
 
 X_STATUS XFile::Rename(const std::filesystem::path& file_path) {
   std::lock_guard<std::mutex> lock(file_lock_);
-  return entry()->Rename(file_path);
+  entry()->Rename(file_path);
+  return X_STATUS_SUCCESS;
 }
 
 void XFile::RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port) {

@@ -10,7 +10,6 @@
 
 #include "../cli_utils.h"
 
-#include <cstdint>
 #include <string>
 
 #include <rex/result.h>
@@ -39,16 +38,8 @@ struct InitModuleOptions {
   std::string guest_path;
 };
 
-struct InitAchievementsOptions {
-  std::string xex_path;
-  std::string output_dir;
-  // XLanguage ID to extract strings for; defaults to English (1) when unset.
-  uint32_t language = 1;
-};
-
 Result<void> InitProject(const InitOptions& opts, const CliContext& ctx);
 Result<void> InitModule(const InitModuleOptions& opts, const CliContext& ctx);
-Result<void> InitAchievements(const InitAchievementsOptions& opts, const CliContext& ctx);
 
 void RegisterInit(CLI::App& parent, const CliContext& ctx, DeferredAction& pending);
 

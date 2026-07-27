@@ -13,6 +13,7 @@
 #include "ui/ui.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <map>
 #include <string>
 
@@ -21,10 +22,14 @@
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
-#include <rex/platform/console.h>
-#include <rex/platform/env.h>
 #include <rex/result.h>
 #include <rex/version.h>
+
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -33,14 +38,16 @@ std::string TitleString() {
 }
 
 bool IsStderrTty() {
-  return rex::platform::console::is_tty(stderr);
+#ifdef _WIN32
+  return _isatty(_fileno(stderr)) != 0;
+#else
+  return isatty(fileno(stderr)) != 0;
+#endif
 }
 
 bool ColorEnabled(bool tty) {
-  auto nc = rex::platform::env::get("NO_COLOR");
-  if (nc.has_value() && !nc->empty()) {
+  if (const char* nc = std::getenv("NO_COLOR"); nc && *nc)
     return false;
-  }
   return tty;
 }
 

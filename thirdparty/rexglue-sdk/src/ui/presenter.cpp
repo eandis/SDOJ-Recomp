@@ -26,6 +26,10 @@
 #include <ffx_api/ffx_upscale.h>
 #endif
 
+#if REX_PLATFORM_WIN32
+#include <rex/ui/window_win.h>
+#endif
+
 REXCVAR_DEFINE_BOOL(host_present_from_non_ui_thread, true, "UI/Presenter",
                     "Allow presentation from non-UI thread");
 
@@ -1433,7 +1437,7 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_di
 #if REX_PLATFORM_WIN32
   HMONITOR surface_new_win32_monitor = nullptr;
   if (surface_) {
-    HWND hwnd = static_cast<HWND>(window_->GetNativeWindowHandle());
+    HWND hwnd = static_cast<const Win32Window*>(window_)->hwnd();
     // The HWND may be non-existent if the window has been closed and destroyed
     // (the HWND, not the rex::ui::Window) already.
     if (hwnd) {

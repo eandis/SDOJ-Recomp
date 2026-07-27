@@ -23,7 +23,6 @@
 #include <rex/assert.h>
 #include <rex/filesystem.h>
 #include <rex/logging.h>
-#include <rex/platform/env.h>
 #include <rex/string.h>
 
 #include <dirent.h>
@@ -64,22 +63,25 @@ std::filesystem::path GetExecutableFolder() {
 
 std::filesystem::path GetUserFolder() {
   // get preferred data home
-  if (auto xdg = rex::platform::env::get("XDG_DATA_HOME")) {
-    return std::filesystem::path(*xdg);
+  char* home = std::getenv("XDG_DATA_HOME");
+  if (home) {
+    return std::string(home);
   }
 
   // if XDG_DATA_HOME not set, fallback to HOME directory
-  if (auto home = rex::platform::env::get("HOME")) {
-    return std::filesystem::path(*home) / ".local" / "share";
+  home = std::getenv("HOME");
+
+  // if HOME not set, fall back to this
+  if (home == NULL) {
+    struct passwd pw1;
+    struct passwd* pw;
+    char buf[4096];  // could potentionally lower this
+    getpwuid_r(getuid(), &pw1, buf, sizeof(buf), &pw);
+    assert(&pw1 == pw);  // sanity check
+    home = pw->pw_dir;
   }
 
-  // if HOME not set, fall back to passwd entry
-  struct passwd pw1;
-  struct passwd* pw;
-  char buf[4096];  // could potentionally lower this
-  getpwuid_r(getuid(), &pw1, buf, sizeof(buf), &pw);
-  assert(&pw1 == pw);  // sanity check
-  return std::filesystem::path(pw->pw_dir) / ".local" / "share";
+  return std::filesystem::path(home) / ".local" / "share";
 }
 
 FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode) {
@@ -166,10 +168,7 @@ class PosixFileHandle : public FileHandle {
 };
 
 std::unique_ptr<FileHandle> FileHandle::OpenExisting(const std::filesystem::path& path,
-                                                     uint32_t desired_access,
-                                                     bool /*allow_share_delete*/) {
-  // POSIX allows unlinking/replacing an open file, so there is no share-delete
-  // analog to thread through here.
+                                                     uint32_t desired_access) {
   int open_access = 0;
   if (desired_access & FileAccess::kGenericRead) {
     open_access |= O_RDONLY;

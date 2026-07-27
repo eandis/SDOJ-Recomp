@@ -30,8 +30,7 @@ exec "$EXECUTABLE" \
     --vsync=false \
     --fullscreen=true \
     --video_mode_refresh_rate=60 \
-    --gpu_plugin=xenos \
-    --gpu_allow_invalid_fetch_constants=true \
+    --xex_apply_patches=true \
     --game_data_root="$ROOT/game_data" \
     --user_data_root="$ROOT/user_data" \
     --input_patch=true \

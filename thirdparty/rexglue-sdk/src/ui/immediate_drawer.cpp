@@ -37,9 +37,7 @@ void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
 
 void ImmediateDrawer::Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
                             float coordinate_space_height) {
-  // App-driven contexts carry no presenter; presenter-driven backend contexts
-  // must match the drawer's presenter. presenter_or_null() is safe for both.
-  assert_true(ui_draw_context.presenter_or_null() == presenter_);
+  assert_true(&ui_draw_context.presenter() == presenter_);
   ui_draw_context_ = &ui_draw_context;
   // In case of non-positive values (or NaNs) - use render target coordinates
   // according to the contract of the function, and also for safety because

@@ -293,18 +293,15 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         context.Enable();
       }
     }
-    // Decode inline. waiting on the worker sweep stalls the realtime
-    // audio thread 50-100ms during kick bursts.
+    // Signal the decoder thread to start processing.
+    work_event_->Set();
+    // Block until the worker finishes, so the game sees updated context data.
     for (int i = 0; kicked_value && i < 32; ++i, kicked_value >>= 1) {
       if (kicked_value & 1) {
         uint32_t context_id = base_context_id + i;
-        auto& context = contexts_[context_id];
-        if (context.Work()) {
-          context.SignalWorkDone();
-        }
+        contexts_[context_id].WaitForWorkDone();
       }
     }
-    work_event_->Set();
   } else if (r >= XmaRegister::Context0Lock && r <= XmaRegister::Context9Lock) {
     // Context lock command.
     // This requests a lock by flagging the context.

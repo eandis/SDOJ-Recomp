@@ -132,7 +132,7 @@ bool Entry::Delete() {
   return parent_->Delete(this);
 }
 
-X_STATUS Entry::Rename(const std::filesystem::path& file_path) {
+void Entry::Rename(const std::filesystem::path& file_path) {
   // Store the string so split path string_views remain valid.
   const std::string path_str = rex::path_to_utf8(file_path);
   std::vector<std::string_view> path_parts = rex::string::utf8_split_path(path_str);
@@ -141,16 +141,12 @@ X_STATUS Entry::Rename(const std::filesystem::path& file_path) {
     path_parts.erase(path_parts.begin());
   }
 
-  X_STATUS status = RenameEntryInternal(path_parts);
-  if (status != X_STATUS_SUCCESS) {
-    return status;
-  }
+  RenameEntryInternal(path_parts);
 
   const std::string guest_path = rex::string::utf8_join_guest_paths(path_parts);
   absolute_path_ = rex::string::utf8_join_guest_paths(device_->mount_path(), guest_path);
   path_ = guest_path;
   name_ = rex::path_to_utf8(file_path.filename());
-  return X_STATUS_SUCCESS;
 }
 
 void Entry::Touch() {

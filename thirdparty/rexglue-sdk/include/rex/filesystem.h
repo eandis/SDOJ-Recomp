@@ -79,8 +79,7 @@ class FileHandle {
   // Opens the file, failing if it doesn't exist.
   // The desired_access bitmask denotes the permissions on the file.
   static std::unique_ptr<FileHandle> OpenExisting(const std::filesystem::path& path,
-                                                  uint32_t desired_access,
-                                                  bool allow_share_delete = false);
+                                                  uint32_t desired_access);
 
   virtual ~FileHandle() = default;
 
