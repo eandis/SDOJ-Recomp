@@ -92,7 +92,7 @@ try {
 
     $isoFiles = @(Get-ChildItem -LiteralPath $Root -File -Filter '*.iso')
     if ($isoFiles.Count -eq 0) {
-      throw 'No ISO found. Put your SDOJ ISO next to launch.cmd and try again.'
+      throw 'No ISO found. Put your SDOJ ISO next to launch.bat and try again.'
     }
     if ($isoFiles.Count -gt 1) {
       throw 'Found more than one ISO. Leave only the SDOJ ISO here and try again.'
@@ -131,7 +131,7 @@ try {
       }
     }
     if ($null -eq $titleUpdate) {
-      throw 'TU1 file not found. Put the TU_11LK1V7... file next to launch.cmd and try again.'
+      throw 'TU1 file not found. Put the TU_11LK1V7... file next to launch.bat and try again.'
     }
 
     Write-Host "Installing TU1 from $($titleUpdate.Name)..." -ForegroundColor Yellow
