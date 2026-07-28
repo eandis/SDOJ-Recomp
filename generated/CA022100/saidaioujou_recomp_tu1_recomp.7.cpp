@@ -37731,7 +37731,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		if (s.expertMode) {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.017999999225139618, score);
 			if (s.section == 1) score = std::fma(s.enemyBullets, 0.010499999858438969, score);
-			if (s.section == 5) score = std::fma(s.enemyBullets, 0.016659999266266823, score);
+			if (s.section == 5) score = std::fma(s.enemyBullets, 0.0155f, score); // original 016659999266266823
 			if (s.section == 1 && s.scroll < 300) score = std::fma(s.enemyBullets, 0.016659999266266823, score);
 		} else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.035000000149011612, score);
@@ -37802,6 +37802,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		if (s.expertMode) {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.014999999664723873, score);
 			if (s.section == 1) score = std::fma(s.enemyBullets, 0.010999999940395355, score);
+			if (s.scroll > 200 && s.scroll < 250) score = std::fma(s.enemyBullets, 0.004f, score);
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.017500000074505806, score);
 		} else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.014999999664723873, score);
