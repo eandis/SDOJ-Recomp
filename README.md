@@ -16,6 +16,7 @@ The slowdown is the same as Xbox 360, not including the hardware lag. That means
 ### Other issues
 - The render patch sometimes introduces graphical artificats
 - The frame delievery is pretty bad right now, the game does not look very smooth unless you run it through Special K.
+- Audio fadeout issues if not using Special K
   
 # Building
 
