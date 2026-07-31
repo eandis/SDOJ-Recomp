@@ -37804,7 +37804,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			} else if (s.scroll < 350) {
 				score += slowdown_float_mul(s.renderWork, 0.000950000016f);
 				score = std::fma(s.projectileExplosionEffects, 0.025000000000000001, score);
-			} else if (s.scroll < 460) {
+			} else if (s.scroll < 471) {
 				score += slowdown_float_mul(s.renderWork, 0.000850000011f);
 			} else {
 				score += slowdown_float_mul(s.renderWork, 0.00104999996f);
@@ -37821,7 +37821,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.017500000074505806, score);
 		} else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.014999999664723873, score);
-			if (s.section == 1 && s.scroll > 460) {
+			if (s.section == 1 && s.scroll > 470) {
 				score = std::fma(s.enemyBullets, 0.0099999997764825821, score);
 			}
 		}
