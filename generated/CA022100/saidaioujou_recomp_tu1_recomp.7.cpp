@@ -6,7 +6,8 @@ extern std::atomic<int32_t> pending_render_work;
 
 namespace {
 
-// use the previously saved renderwork if its non 0
+// use the previously saved renderwork if its nonzero
+// otherwise keep the live value originally calculated by the game
 int32_t TakePendingRenderWork(int32_t render_work) {
 	const int32_t pending = pending_render_work.exchange(
 		0, std::memory_order_acq_rel);
@@ -37941,7 +37942,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			}
 
 			if (s.section == 5) {
-				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.0035f : 0.001f, score); // extra slowdown for jetbachi opener.
+				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.006f : 0.001f, score); // extra slowdown for jetbachi opener.
 			}
 		}
 
@@ -37952,10 +37953,10 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			score += slowdown_float_mul(s.renderWork, 3.9999999e-05f);
 		}
 		if (s.scroll >= 345 && s.scroll < 446) {
-			score += slowdown_float_mul(s.renderWork, 0.000119999999f); // original 000169999999f
+			score += slowdown_float_mul(s.renderWork, 0.00009f); // original 000169999999f
 		}
 
-		if (s.scroll >= 446 && s.scroll < 470) score -= 1.6000000238418579;
+		if (s.scroll >= 446 && s.scroll < 470) score -= 3.2f;
 		if (s.section == 4) score += 0.64999997615814209;
 
 		// boss entrance slowdown.
