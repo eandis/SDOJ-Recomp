@@ -37836,7 +37836,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 
 		// last section slowdown
 		if (!s.expertMode && s.scroll > 268 && s.scroll < 281) score += 2.25f;
-		if (s.expertMode && s.scroll > 270 && s.scroll < 347) score += 1.2999999523162842;
+		if (s.expertMode && s.scroll > 270 && s.scroll < 347) score += 1.6999999523162842;
 
 		if (s.expertMode) {
 			if (s.scroll > 105 && s.scroll < 122) score += 1.5; // zakos before midboss
@@ -37853,10 +37853,8 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.enemyBullets, weight, score);
 				if (s.scroll > 125 && s.scroll < 130) score = std::fma(s.enemyBullets, 0.002f , score); //midboss 2nd attack
 				if (s.scroll > 140 && s.scroll < 181) score = std::fma(s.enemyBullets, 0.013f, score);
-				if (s.scroll > 180 && s.scroll < 241) score = -std::fma(s.enemyBullets, 0.003f, -score);
-				if (s.scroll > 240) {
-					score += slowdown_float_mul(s.renderWork, 4.99999987e-05f);
-				}
+				if (s.scroll > 180 && s.scroll < 230) score = -std::fma(s.enemyBullets, 0.005f, -score);
+				if (s.scroll > 229 && s.scroll < 241) score = -std::fma(s.enemyBullets, 0.007f, -score);
 			}
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		} else {
