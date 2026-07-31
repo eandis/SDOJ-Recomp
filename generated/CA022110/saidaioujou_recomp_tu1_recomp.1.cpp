@@ -2163,9 +2163,7 @@ loc_88052160:
 	REX_STORE_U32(ctx.r16.u32 + 5836, ctx.r3.u32);
 	const uint32_t render_calls_needed = ctx.r3.u32;
 	if (sdoj_patch_flags::render_enabled() &&
-		(render_calls_needed == 1
-		|| render_calls_needed == 2
-	)) {
+		render_calls_needed >= 1 && render_calls_needed <= 4) {
 		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886FD218);
 		const uint32_t render_service_lock =
 			GetRenderServiceLock(base, 0x88881720);

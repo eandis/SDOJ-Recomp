@@ -23,16 +23,16 @@ uint32_t GetRenderCallsForMode(uint8_t* base, uint32_t callback_address,
   }
 
   const uint32_t render_calls = REX_LOAD_U32(render_calls_address);
-  if (render_calls != 1
-      && render_calls != 2
-  ) {
+  if (render_calls == 0 || render_calls > 4) {
     return 0;
   }
 
   const uint32_t graphics_state = REX_LOAD_U32(graphics_address);
-  return graphics_state != 0 && REX_LOAD_U32(graphics_state + 472) == 0
-             ? render_calls
-             : 0;
+  if (graphics_state == 0 || REX_LOAD_U32(graphics_state + 472) != 0) {
+    return 0;
+  }
+
+  return render_calls;
 }
 
 uint32_t GetRenderCalls(uint8_t* base) {
