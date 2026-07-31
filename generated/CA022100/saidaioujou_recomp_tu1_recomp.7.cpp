@@ -1,5 +1,20 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
+#include <atomic>
+
+extern std::atomic<int32_t> pending_render_work;
+
+namespace {
+
+// use the previously saved renderwork if its nonzero
+// otherwise keep the live value originally calculated by the game
+int32_t TakePendingRenderWork(int32_t render_work) {
+	const int32_t pending = pending_render_work.exchange(
+		0, std::memory_order_acq_rel);
+	return pending != 0 ? pending : render_work;
+}
+
+}  
 
 DEFINE_REX_FUNC(sub_88113540) {
 	REX_FUNC_PROLOGUE();
@@ -37789,7 +37804,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			} else if (s.scroll < 350) {
 				score += slowdown_float_mul(s.renderWork, 0.000950000016f);
 				score = std::fma(s.projectileExplosionEffects, 0.025000000000000001, score);
-			} else if (s.scroll < 460) {
+			} else if (s.scroll < 471) {
 				score += slowdown_float_mul(s.renderWork, 0.000850000011f);
 			} else {
 				score += slowdown_float_mul(s.renderWork, 0.00104999996f);
@@ -37806,7 +37821,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.017500000074505806, score);
 		} else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.014999999664723873, score);
-			if (s.section == 1 && s.scroll > 460) {
+			if (s.section == 1 && s.scroll > 470) {
 				score = std::fma(s.enemyBullets, 0.0099999997764825821, score);
 			}
 		}
@@ -37821,7 +37836,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 
 		// last section slowdown
 		if (!s.expertMode && s.scroll > 268 && s.scroll < 281) score += 2.25f;
-		if (s.expertMode && s.scroll > 270 && s.scroll < 347) score += 1.2999999523162842;
+		if (s.expertMode && s.scroll > 270 && s.scroll < 347) score += 1.6999999523162842;
 
 		if (s.expertMode) {
 			if (s.scroll > 105 && s.scroll < 122) score += 1.5; // zakos before midboss
@@ -37838,10 +37853,8 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.enemyBullets, weight, score);
 				if (s.scroll > 125 && s.scroll < 130) score = std::fma(s.enemyBullets, 0.002f , score); //midboss 2nd attack
 				if (s.scroll > 140 && s.scroll < 181) score = std::fma(s.enemyBullets, 0.013f, score);
-				if (s.scroll > 180 && s.scroll < 241) score = -std::fma(s.enemyBullets, 0.003f, -score);
-				if (s.scroll > 240) {
-					score += slowdown_float_mul(s.renderWork, 4.99999987e-05f);
-				}
+				if (s.scroll > 180 && s.scroll < 230) score = -std::fma(s.enemyBullets, 0.005f, -score);
+				if (s.scroll > 229 && s.scroll < 241) score = -std::fma(s.enemyBullets, 0.007f, -score);
 			}
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		} else {
@@ -37855,12 +37868,12 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		// separate these for now.
 		if (s.expertMode) {
 			if (s.section == 0) {
-				score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.00115f : 0.000910000002f);
+				score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.0011f : 0.000910000002f);
 			}
 			else {
 				score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.00109099996f : 0.000910000002f);
 			}
-			if (s.section == 0) score = std::fma(s.enemyBullets, 0.0105f, score); // original 016000000759959221
+			if (s.section == 0) score = std::fma(s.enemyBullets, 0.0145f, score); // original 016000000759959221
 			if (s.scroll > 78 && s.scroll < 478) {
 			score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		}
@@ -37897,36 +37910,37 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		}
 
 		if (s.expertMode) {
-			if (s.section == 0) {
-				score = -std::fma(s.enemyBullets, 0.0040000001899898052, -score);
+			if (s.scroll > 29 && s.scroll < 78) {
+				score = -std::fma(s.enemyBullets, 0.005f, -score);
 			}
 			if (s.scroll > 78 && s.scroll < 213) {
-				score = -std::fma(s.enemyBullets, 0.0025000000540167093, -score); // original 0017500000540167093
+				score = -std::fma(s.enemyBullets, 0.002500000540167093, -score); // original 0017500000540167093
+			}
+			if (s.bossScript == 0x88153C08) score = -std::fma(s.enemyBullets, 0.0011f, -score);
+			if (s.scroll > 93 && s.scroll < 103) { // a bit more slowdown for attack 3 of the first midboss.
+				score += slowdown_float_mul(s.renderWork, 0.00005f);
 			}
 			if (s.scroll > 212 && s.scroll < 231) {
-				score = std::fma(s.enemyBullets, 0.009000000208616257, score); // section after midbosses.
-			}
-			if (s.scroll > 93 && s.scroll < 103) { // a bit more slowdown for attack 3 of the first midboss.
-				score += slowdown_float_mul(s.renderWork, 0.00004f);
+				score = std::fma(s.enemyBullets, 0.0085f, score); // section after midbosses.
 			}
 			if (s.scroll > 230 && s.scroll < 244) {
-				score = -std::fma(s.enemyBullets, 0.0100000003799796104, -score); // original 0.08 
+				score = -std::fma(s.enemyBullets, 0.012f, -score); // original 0.08 
 			}
 			if (s.scroll > 244 && s.scroll < 293) {
-				score = std::fma(s.enemyBullets, 0.003f, score);
+				score = -std::fma(s.enemyBullets, 0.0005f, -score);
 			}
 			if (s.scroll > 270 && s.scroll < 275) {
 				score = -std::fma(s.enemyBullets, 0.005f, -score);
 			}
-			if (s.scroll > 300 && s.scroll < 315) {
+			if (s.scroll > 300 && s.scroll < 306) {
 				score = std::fma(s.enemyBullets, 0.004f, score);
 			}
 			if (s.scroll > 328 && s.scroll < 340) {
-				score = std::fma(s.enemyBullets, 0.004f, score);
+				score = std::fma(s.enemyBullets, 0.002f, score);
 			}
 
 			if (s.section == 5) {
-				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.0035f : 0.001f, score); // extra slowdown for jetbachi opener.
+				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.006f : 0.001f, score); // extra slowdown for jetbachi opener.
 			}
 		}
 
@@ -37937,10 +37951,10 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			score += slowdown_float_mul(s.renderWork, 3.9999999e-05f);
 		}
 		if (s.scroll >= 345 && s.scroll < 446) {
-			score += slowdown_float_mul(s.renderWork, 0.000119999999f); // original 000169999999f
+			score += slowdown_float_mul(s.renderWork, 0.00009f); // original 000169999999f
 		}
 
-		if (s.scroll >= 446 && s.scroll < 470) score -= 1.6000000238418579;
+		if (s.scroll >= 446 && s.scroll < 470) score -= 3.2f;
 		if (s.section == 4) score += 0.64999997615814209;
 
 		// boss entrance slowdown.
@@ -38363,6 +38377,7 @@ loc_88123FBC:
 	temp.s64 = ctx.r10.s64 + ctx.xer.ca;
 	ctx.xer.ca = temp.u32 < ctx.r10.u32;
 	ctx.r6.s64 = temp.s64;
+	ctx.r6.s64 = TakePendingRenderWork(ctx.r6.s32);
 	// bne cr6,0x88123fe8
 	if (!ctx.cr6.eq) goto loc_88123FE8;
 	// lfd f0,136(r11)
@@ -38483,15 +38498,13 @@ loc_8812461C:
 	// fmr f0,f31
 	ctx.f0.f64 = ctx.f31.f64;
 loc_88124628:
-	// fcmpu cr6,f0,f12
-	ctx.fpscr.disableFlushMode();
-	ctx.cr6.compare(ctx.f0.f64, ctx.f12.f64);
-	// blt cr6,0x8812463c
-	if (ctx.cr6.lt) goto loc_8812463C;
+	{
+		const uint32_t slowdown_depth = ctx.f0.f64 >= 48.0 ? 4 :
+			ctx.f0.f64 >= 32.0 ? 3 : ctx.f0.f64 >= ctx.f12.f64 ? 2 : 1;
+		ctx.r10.u64 = slowdown_depth;
+	}
 	// lis r9,-30584
 	ctx.r9.s64 = -2004353024;
-	// li r10,2
-	ctx.r10.s64 = 2;
 	// stw r10,-28248(r9)
 	REX_STORE_U32(ctx.r9.u32 + -28248, ctx.r10.u32);
 loc_8812463C:

@@ -2120,13 +2120,12 @@ loc_88052198:
 	sub_88123D28(ctx, base);
 	// lwz r3,-28248(r14)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r14.u32 + -28248);
-	// stw r3,-28252(r18)
-	REX_STORE_U32(ctx.r18.u32 + -28252, ctx.r3.u32);
 	const uint32_t render_calls_needed = ctx.r3.u32;
+	// stw r3,-28252(r18)
+	REX_STORE_U32(ctx.r18.u32 + -28252, render_calls_needed);
+	ctx.r3.u64 = render_calls_needed;
 	if (sdoj_patch_flags::render_enabled() &&
-		(render_calls_needed == 1
-		|| render_calls_needed == 2
-	)) {
+		render_calls_needed >= 1 && render_calls_needed <= 4) {
 		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886F4CF0);
 		const uint32_t render_service_lock =
 			GetRenderServiceLock(base, 0x888791F8);
