@@ -11,7 +11,7 @@ Dodonpachi Saidaioujou Recompilation using [rexglue](https://github.com/rexglue/
 
 ### Slowdown
 
-Slowdown is heavily tweaked compared to Xbox 360. The game is tuned to mostly match what you'd see playing on shmupmame 5.3.1, for both expert and regular modes. Xbox 360 Arrange does **not** have any slowdown, as all the slowdown comes from the 360 lagging itself, thus, the slowdown will not be tuned for this mode.
+Slowdown is heavily tweaked compared to Xbox 360. The game is tuned to mostly match what you'd see playing on shmupmame 5.3.1, for both expert and regular modes. Xbox Arrange mode does **not** have any slowdown, as all the slowdown comes from the 360 lagging itself, thus, the slowdown will not be tuned for this mode.
 
 ### Other issues
 - The render patch sometimes introduces graphical artificats
