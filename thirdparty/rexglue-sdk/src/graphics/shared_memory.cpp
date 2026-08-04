@@ -128,6 +128,11 @@ void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
     return;
   }
 
+  auto global_lock = global_critical_region_.Acquire();
+  if (!gpu_written_data_dirty_.load(std::memory_order_relaxed)) {
+    return;
+  }
+
   uint64_t* staging = staging_valid_flags_.load(std::memory_order_acquire);
   if (!staging || !num_system_page_flags_) {
     gpu_written_data_dirty_.store(false, std::memory_order_relaxed);
@@ -454,7 +459,8 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     }
   }
 
-  uint64_t* valid_flags = active_valid_flags_.load(std::memory_order_acquire);
+  auto valid_flags_lock = global_critical_region_.Acquire();
+  uint64_t* valid_flags = active_valid_flags_.load(std::memory_order_relaxed);
   if (valid_flags) {
     bool all_valid = true;
     for (const std::pair<uint32_t, uint32_t>& range : merged_ranges) {
@@ -492,6 +498,7 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
       return true;
     }
   }
+  valid_flags_lock.unlock();
 
   upload_ranges_.clear();
   auto append_upload_range = [this](uint32_t page_start, uint32_t page_count) {
