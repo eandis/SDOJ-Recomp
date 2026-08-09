@@ -37738,30 +37738,6 @@ static int32_t slowdown_whole_number(double value) {
 static double calculate_slowdown_score(const SlowdownInputs& s) {
 	double score = s.baseScore;
 
-	// stage 2 + stage 1
-	auto run_stage_1 = [&] {
-
-		score += slowdown_float_mul(s.renderWork, 0.00100000005f);
-
-		if (s.expertMode) {
-			if (s.section == 0) score = std::fma(s.enemyBullets, 0.017999999225139618, score);
-			if (s.section == 1) score = std::fma(s.enemyBullets, 0.010499999858438969, score);
-			if (s.section == 5) score = std::fma(s.enemyBullets, 0.0155f, score); // original 016659999266266823
-			if (s.section == 1 && s.scroll < 300) score = std::fma(s.enemyBullets, 0.016659999266266823, score);
-		} else {
-			if (s.section == 0) score = std::fma(s.enemyBullets, 0.035000000149011612, score);
-			if (s.section == 1 && s.scroll < 390) {
-				score = std::fma(s.enemyBullets, 0.018999999389052391, score);
-			}
-		}
-
-		if (s.section == 4) score -= 1.0;
-
-		if (s.scroll > 750 && s.screenEffectMode != 4 && s.projectileExplosionEffects < 130.0) {
-			score = -std::fma(s.projectileExplosionEffects, 0.040000000000000001, -score);
-		}
-	};
-
 	switch (s.stage) {
 	case 0: // stage 1
 		if (!s.expertMode) {
@@ -37779,7 +37755,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		}
 		if (s.section < 1) return score;
 
-		if (s.scroll < 242) { // first midboss attack
+		if (s.scroll < 242) { // up to first midboss attack
 			return std::fma(s.enemyBullets, 0.01f, score);
 		}
 		if (s.scroll < 320) { // last midboss attack
@@ -37791,7 +37767,26 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		return score;
 
 	case 1: // stage 2
-		run_stage_1(); // reuses stage 1 stuff.
+		score += slowdown_float_mul(s.renderWork, 0.00100000005f);
+
+		if (s.expertMode) {
+			if (s.section == 0) score = std::fma(s.enemyBullets, 0.017999999225139618, score);
+			if (s.section == 1) score = std::fma(s.enemyBullets, 0.010499999858438969, score);
+			if (s.section == 5) score = std::fma(s.enemyBullets, 0.0155f, score); // original 016659999266266823
+			if (s.section == 1 && s.scroll < 300) score = std::fma(s.enemyBullets, 0.016659999266266823, score);
+			if (s.bossScript == 0x881798E0 || s.bossScript == 0x88178638) score = -std::fma(s.enemyBullets, 0.001f, -score);
+		} else {
+			if (s.section == 0) score = std::fma(s.enemyBullets, 0.035000000149011612, score);
+			if (s.section == 1 && s.scroll < 390) {
+				score = std::fma(s.enemyBullets, 0.018999999389052391, score);
+			}
+		}
+
+		if (s.section == 4) score -= 1.0;
+
+		if (s.scroll > 750 && s.screenEffectMode != 4 && s.projectileExplosionEffects < 130.0) {
+			score = -std::fma(s.projectileExplosionEffects, 0.040000000000000001, -score);
+		}
 		return score;
 
 	case 2: // stage 3
@@ -37806,9 +37801,12 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.projectileExplosionEffects, 0.025000000000000001, score);
 			} else if (s.scroll < 471) {
 				score += slowdown_float_mul(s.renderWork, 0.000850000011f);
+			} else if (s.scroll < 600) {
+				score += slowdown_float_mul(s.renderWork, 0.0009f);
+				score = std::fma(s.enemyBullets, 0.009f, score);
 			} else {
-				score += slowdown_float_mul(s.renderWork, s.scroll > 500 ? 0.00104999996f : 0.00085f);
-				score = std::fma(s.enemyBullets, 0.0099999997764825821, score);
+				score += slowdown_float_mul(s.renderWork, 0.00105f);
+				score = std::fma(s.enemyBullets, 0.008f, score);
 			}
 		}
 		if (s.section == 4) score += slowdown_float_mul(s.renderWork, 0.00100000005f);
@@ -37832,11 +37830,11 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		if (!s.expertMode && s.scroll > 92 && s.scroll < 101) { 
 			score = std::fma(s.enemyBullets, 0.003f, score);
 		}
-		if (s.scroll > 181) score += slowdown_float_mul(s.renderWork, 4.99999987e-05f);
+		if (s.scroll > 181) score += slowdown_float_mul(s.renderWork, 0.00005f);
 
 		// last section slowdown
-		if (!s.expertMode && s.scroll > 268 && s.scroll < 281) score += 2.25f;
-		if (s.expertMode && s.scroll > 270 && s.scroll < 347) score += 1.6999999523162842;
+		if (!s.expertMode && s.scroll > 268 && s.scroll < 281) score += 2.1f;
+		if (s.expertMode && s.scroll > 270 && s.scroll < 347) score += 1.6999999523162842; // test these later more
 
 		if (s.expertMode) {
 			if (s.scroll > 105 && s.scroll < 122) score += 1.5; // zakos before midboss
@@ -37853,8 +37851,8 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.enemyBullets, weight, score);
 				if (s.scroll > 125 && s.scroll < 130) score = std::fma(s.enemyBullets, 0.002f , score); //midboss 2nd attack
 				if (s.scroll > 140 && s.scroll < 181) score = std::fma(s.enemyBullets, 0.013f, score);
-				if (s.scroll > 180 && s.scroll < 230) score = -std::fma(s.enemyBullets, 0.005f, -score);
-				if (s.scroll > 229 && s.scroll < 241) score = -std::fma(s.enemyBullets, 0.007f, -score);
+				if (s.scroll > 180 && s.scroll < 220) score = -std::fma(s.enemyBullets, 0.005f, -score);
+				if (s.scroll > 219 && s.scroll < 262) score = -std::fma(s.enemyBullets, 0.007f, -score);
 			}
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		} else {
@@ -37868,19 +37866,19 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		// separate these for now.
 		if (s.expertMode) {
 			if (s.section == 0) {
-				score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.0011f : 0.000910000002f);
+				score += slowdown_float_mul(s.renderWork, 0.00109f);
 			}
 			else {
-				score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.00109099996f : 0.000910000002f);
+				score += slowdown_float_mul(s.renderWork, s.section < 5 ? 0.00109099996f : 0.000905f); // test inbachi later
 			}
-			if (s.section == 0) score = std::fma(s.enemyBullets, 0.0145f, score); // original 016000000759959221
+			if (s.section == 0) score = std::fma(s.enemyBullets, 0.013f, score); // original 016000000759959221
 			if (s.scroll > 78 && s.scroll < 478) {
 			score = std::fma(s.enemyBullets, 0.0080000003799796104, score);
 		}
 			if (s.scroll > 230 && s.scroll < 244) {
 				score = std::fma(s.enemyBullets, 0.024000000208616257, score);
 		}
-			if (s.section >= 5) score = std::fma(s.enemyBullets, 0.008750000037252903, score);
+			if (s.section >= 5) score = std::fma(s.enemyBullets, 0.00875f, score);
 
 		}
 
@@ -37910,11 +37908,11 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		}
 
 		if (s.expertMode) {
-			if (s.scroll > 29 && s.scroll < 78) {
-				score = -std::fma(s.enemyBullets, 0.005f, -score);
+			if (s.scroll < 78) {
+				score = -std::fma(s.renderWork, 0.00001f, -score);
 			}
 			if (s.scroll > 78 && s.scroll < 213) {
-				score = -std::fma(s.enemyBullets, 0.002500000540167093, -score); // original 0017500000540167093
+				score = -std::fma(s.enemyBullets, 0.002600000540167093, -score); // original 0017500000540167093
 			}
 			if (s.bossScript == 0x88153C08) score = -std::fma(s.enemyBullets, 0.0011f, -score);
 			if (s.scroll > 93 && s.scroll < 103) { // a bit more slowdown for attack 3 of the first midboss.
@@ -37924,10 +37922,10 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.enemyBullets, 0.0085f, score); // section after midbosses.
 			}
 			if (s.scroll > 230 && s.scroll < 244) {
-				score = -std::fma(s.enemyBullets, 0.012f, -score); // original 0.08 
+				score = -std::fma(s.enemyBullets, 0.014f, -score); // original 0.08 
 			}
 			if (s.scroll > 244 && s.scroll < 293) {
-				score = -std::fma(s.enemyBullets, 0.0005f, -score);
+				score = -std::fma(s.enemyBullets, 0.0045f, -score);
 			}
 			if (s.scroll > 270 && s.scroll < 275) {
 				score = -std::fma(s.enemyBullets, 0.005f, -score);
@@ -37939,8 +37937,18 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 				score = std::fma(s.enemyBullets, 0.002f, score);
 			}
 
+			// jetbachi garbage
 			if (s.section == 5) {
-				 score = std::fma(s.enemyBullets, s.bossScript == 0x8812A448 ? 0.006f : 0.001f, score); // extra slowdown for jetbachi opener.
+				if (s.bossScript == 0x8812A448) {
+					score = std::fma(s.renderWork, 0.0001f, score); // extra slowdown for jetbachi opener.
+				} else if (s.bossScript == 0x881294A0) {
+					score = -std::fma(s.renderWork, 0.00006f, -score); // 3rd attack
+				} else if (s.bossScript == 0x8812AE80 || s.bossScript == 0x88129208) { 
+					score = -std::fma(s.renderWork, 0.0006f, -score);
+				} else if (s.bossScript == 0x8814E530 || s.bossScript == 0x8814E188) { 
+					score = std::fma(s.renderWork, 0.00006f, score); // final
+				}
+
 			}
 		}
 
@@ -38405,7 +38413,6 @@ loc_88123FE8:
 		REX_LOAD_U32(0x88610030) != 0;
 	readable_inputs.bossScript = boss_active ? REX_LOAD_U32(0x886B1D68) : 0;
 	if (!boss_active) REX_STORE_U32(0x886B1D68, 0);
-
 	ctx.f30.u64 = REX_LOAD_U64(ctx.r11.u32 + 456);
 	ctx.f0.f64 = calculate_slowdown_score(readable_inputs);
 	goto loc_88124598;
