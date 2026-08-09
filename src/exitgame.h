@@ -1,19 +1,19 @@
 #pragma once
 
-#include <rex/ui/window.h>
+#include <rex/rex_app.h>
 
 namespace sdoj_pc_exit {
 
-inline rex::ui::Window* window = nullptr;
+inline rex::ReXApp* app = nullptr;
 
-inline void set_window(rex::ui::Window& app_window) {
-  window = &app_window;
+inline void set_app(rex::ReXApp& recomp_app) {
+  app = &recomp_app;
 }
 
 inline void quit() {
-  auto* app_window = window;
-  app_window->app_context().CallInUIThread(
-      [app_window] { app_window->RequestClose(); });
+  if (app) {
+    app->RequestExit();
+  }
 }
 
 }

@@ -400,14 +400,24 @@ void ReXApp::OnKeyDown(ui::KeyEvent& e) {
   rex::ui::ProcessKeyEvent(e);
 }
 
-void ReXApp::OnClosing(ui::UIEvent& e) {
-  (void)e;
-  REXLOG_INFO("Window closing, shutting down...");
-  shutting_down_.store(true, std::memory_order_release);
+void ReXApp::RequestExit() {
+  app_context().CallInUIThread([this]() { ShutdownFromUIThread(); });
+}
+
+void ReXApp::ShutdownFromUIThread() {
+  if (shutting_down_.exchange(true, std::memory_order_acq_rel)) {
+    return;
+  }
+  REXLOG_INFO("Shutting down...");
   if (runtime_ && runtime_->kernel_state()) {
     runtime_->kernel_state()->TerminateTitle();
   }
   app_context().QuitFromUIThread();
+}
+
+void ReXApp::OnClosing(ui::UIEvent& e) {
+  (void)e;
+  ShutdownFromUIThread();
 }
 
 void ReXApp::OnDestroy() {

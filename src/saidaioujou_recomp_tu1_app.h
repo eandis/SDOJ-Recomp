@@ -18,10 +18,7 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
   }
 
   void OnPreSetup(rex::RuntimeConfig& config) override {
+    sdoj_pc_exit::set_app(*this);
     REXCVAR_SET(gpu_allow_invalid_fetch_constants, true);
-  }
-
-  void OnCreateDialogs(rex::ui::ImGuiDrawer*) override {
-    sdoj_pc_exit::set_window(*window());
   }
 };

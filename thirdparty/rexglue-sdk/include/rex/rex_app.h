@@ -89,6 +89,8 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
  public:
   ~ReXApp() override;
 
+  void RequestExit();
+
  protected:
   ReXApp(ui::WindowedAppContext& ctx, std::string_view name, PPCImageInfo ppc_info,
          std::string_view usage = "");
@@ -190,6 +192,8 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   void SetGuestFrameStats(ui::DebugOverlayDialog::FrameStatsProvider provider);
 
  private:
+  void ShutdownFromUIThread();
+
   std::function<void(PathConfig)> MakeResumeCallback();
 
   // WindowedApp overrides
