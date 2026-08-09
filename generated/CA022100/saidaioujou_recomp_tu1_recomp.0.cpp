@@ -6,6 +6,8 @@
 #include <chrono>
 #include <thread>
 
+// render patch. run the game's render callback batch earlier and wait a bit for the finished buffer
+// the original calls later in the frame are skipped so nothing gets duplicated
 extern uint32_t late_render_calls_to_skip;
 extern std::atomic<uint32_t> render_worker_state;
 

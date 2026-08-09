@@ -6,24 +6,26 @@
 #include <atomic>
 
 uint32_t late_render_calls_to_skip = 0;
-std::atomic<bool> buffer_swapped_early{false};
+std::atomic<uint32_t> early_buffer_swap_count{0};
 std::atomic<uint32_t> render_worker_state{0};
 
 namespace {
 
-uint32_t GetRenderServiceLock(uint8_t* base, uint32_t graphics_slot) {
-	const uint32_t graphics = REX_LOAD_U32(graphics_slot);
-	return graphics ? REX_LOAD_U32(graphics + 480) : 0;
+// the buffer swap runs on a separate thread, so another thread can read the render state at the same time
+// lock the graphics state so other threads can't read it halfway through the swap
+uint32_t GetGraphicsLock(uint8_t* base, uint32_t graphics,
+		uint32_t lock_offset) {
+	return graphics ? REX_LOAD_U32(graphics + lock_offset) : 0;
 }
 
-void UseRenderServiceLock(PPCContext& ctx, uint8_t* base,
-		uint32_t render_service_lock, uint32_t vtable_offset) {
-	if (render_service_lock == 0) return;
+void UseGraphicsLock(PPCContext& ctx, uint8_t* base,
+		uint32_t graphics_lock, uint32_t vtable_offset) {
+	if (graphics_lock == 0) return;
 
 	const PPCContext saved_ctx = ctx;
-	ctx.r3.u64 = render_service_lock;
+	ctx.r3.u64 = graphics_lock;
 	ctx.ctr.u64 = REX_LOAD_U32(
-		REX_LOAD_U32(render_service_lock) + vtable_offset);
+		REX_LOAD_U32(graphics_lock) + vtable_offset);
 	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 	ctx = saved_ctx;
 	ctx.fpscr.setcsr(ctx.fpscr.csr);
@@ -35,6 +37,10 @@ struct GameplayPad {
 	uint8_t triggers[2]{};
 	int16_t sticks[4]{};
 };
+
+
+// input patch. the game normally builds the mask from an older controller update
+// poll again
 
 bool PollGameplayPad(PPCContext& ctx, uint8_t* base, uint32_t port,
 		uint32_t return_address, GameplayPad& pad) {
@@ -96,7 +102,6 @@ int32_t ReadGameplayAction(PPCContext& ctx, uint8_t* base,
 	return 0;
 }
 
-// poll again
 void RefreshGameplayInput(PPCContext& ctx, uint8_t* base,
 		uint32_t input_manager, uint32_t config_slot,
 		uint32_t gameplay_input, uint32_t return_address) {
@@ -192,13 +197,30 @@ loc_88051330:
 	// bne cr6,0x88051368
 	if (!ctx.cr6.eq) goto loc_88051368;
 	// bl 0x88033070
-	if (sdoj_patch_flags::render_enabled() &&
-		buffer_swapped_early.exchange(
-			false, std::memory_order_acq_rel)) {
-		ctx.r3.s64 = 1;
+	if (sdoj_patch_flags::render_enabled()) {
+		const uint32_t graphics = REX_LOAD_U32(0x88881720);
+		const uint32_t render_state_lock =
+			GetGraphicsLock(base, graphics, 476);
+		const uint32_t render_service_lock =
+			GetGraphicsLock(base, graphics, 480);
+		UseGraphicsLock(ctx, base, render_state_lock, 4);
+		UseGraphicsLock(ctx, base, render_service_lock, 4);
+
+		const uint32_t early_swap_count = early_buffer_swap_count.exchange(
+			0, std::memory_order_acq_rel);
+		if (early_swap_count != 0 &&
+			early_swap_count == REX_LOAD_U32(0x886FD218)) {
+			ctx.r3.s64 = 1;
+		} else {
+			ctx.lr = 0x88051350;
+			SwapRenderBuffer(ctx, base);
+		}
+
+		UseGraphicsLock(ctx, base, render_service_lock, 8);
+		UseGraphicsLock(ctx, base, render_state_lock, 8);
 	} else {
-	ctx.lr = 0x88051350;
-	SwapRenderBuffer(ctx, base);
+		ctx.lr = 0x88051350;
+		SwapRenderBuffer(ctx, base);
 	}
 	// cmpwi r3,0
 	ctx.cr0.compare<int32_t>(ctx.r3.s32, 0, ctx.xer);
@@ -1553,6 +1575,7 @@ loc_88051D30:
 	ctx.lr = 0x88051D3C;
 	sub_880358C0(ctx, base);
 	if (sdoj_patch_flags::input_enabled()) {
+		// refresh input right before the game builds the mask
 		const uint32_t input_object = REX_LOAD_U32(0x88881720);
 		const uint32_t input_manager =
 			input_object ? REX_LOAD_U32(input_object + 588) : 0;
@@ -2164,19 +2187,24 @@ loc_88052160:
 	const uint32_t render_calls_needed = ctx.r3.u32;
 	if (sdoj_patch_flags::render_enabled() &&
 		render_calls_needed >= 1 && render_calls_needed <= 4) {
-		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886FD218);
+		// swap the finished buffer early
+		const uint32_t graphics = REX_LOAD_U32(0x88881720);
+		const uint32_t render_state_lock =
+			GetGraphicsLock(base, graphics, 476);
 		const uint32_t render_service_lock =
-			GetRenderServiceLock(base, 0x88881720);
-		UseRenderServiceLock(ctx, base, render_service_lock, 4);
+			GetGraphicsLock(base, graphics, 480);
+		UseGraphicsLock(ctx, base, render_state_lock, 4);
+		UseGraphicsLock(ctx, base, render_service_lock, 4);
+		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886FD218);
 		ctx.lr = 0x88052184;
 		SwapRenderBuffer(ctx, base);
-		const bool buffer_swapped =
-			REX_LOAD_U32(0x886FD218) != old_buffer_swap_count;
-		if (buffer_swapped) {
-			buffer_swapped_early.store(
-				true, std::memory_order_release);
+		const uint32_t new_buffer_swap_count = REX_LOAD_U32(0x886FD218);
+		if (new_buffer_swap_count != old_buffer_swap_count) {
+			early_buffer_swap_count.store(
+				new_buffer_swap_count, std::memory_order_release);
 		}
-		UseRenderServiceLock(ctx, base, render_service_lock, 8);
+		UseGraphicsLock(ctx, base, render_service_lock, 8);
+		UseGraphicsLock(ctx, base, render_state_lock, 8);
 		ctx.r3.u64 = render_calls_needed;
 	}
 	// lwz r11,5836(r16)
