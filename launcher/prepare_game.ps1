@@ -13,18 +13,30 @@ $Extractor = Join-Path $Root 'tools\extract-xiso\extract-xiso.exe'
 $Executable = Join-Path $Root 'saidaioujou_recomp_tu1.exe'
 $Redist = Join-Path $Root 'prerequisites\VC_redist.x64.exe'
 
-$ExpectedTitleUpdateHash = '0A893048C761BA6CF8ED14637F326726BC616B5183CA1EE52DE02FC12B46B215'
+$ExpectedDiscTitleUpdateHash = '0A893048C761BA6CF8ED14637F326726BC616B5183CA1EE52DE02FC12B46B215'
 
-$BaseFiles = @(
+$DiscBaseFiles = @(
   @{ Name = 'default.xex';  Hash = '709EB9FD2E4446E5754461616693B3BBB8B78FEF5AA613FFCDE6D643DA0133F5' },
   @{ Name = 'CA022100.bin'; Hash = 'A8454BB24A0C0F0A0E5C89C8885041DEE6411E2C688874A5E2A57966174939BE' },
   @{ Name = 'CA022110.bin'; Hash = '4C08B646140E4887AC2036208195E99DFDB4AE32FC7D1571D589B6657791BC75' }
 )
 
-$PatchFiles = @(
+$GodBaseFiles = @(
+  @{ Name = 'default.xex';  Hash = '41AB091576813248712A387B273398E5D700454505E83F6F1FEB7DE2C1027707' },
+  @{ Name = 'CA022100.bin'; Hash = 'EC610171AE966D7B37D3E44FF40DD89EF1086DC88633C01EB390824154659769' },
+  @{ Name = 'CA022110.bin'; Hash = 'D0340C943EC0FCEEB65892B7F3451CA6B687D2282984FEAAC3D8D043BEEB2569' }
+)
+
+$DiscPatchFiles = @(
   @{ Name = 'CA022100.binp'; Offset = 53248;  Length = 126976; Hash = '830EE751922483115F735F442A23B0AB203468DE17E509DA6ED08B25BE25DC4F' },
   @{ Name = 'CA022110.binp'; Offset = 180224; Length = 118784; Hash = 'B0FD71B07A0DFAE8E834A08A2EF7BD064B44492A7B50854B2C9245AB48266C00' },
   @{ Name = 'default.xexp';  Offset = 299008; Length = 299008; Hash = '79C6958470749931040BA2B68AED268A64CDAEED03F788EEAFFDABD45BA7EBBB' }
+)
+
+$GodPatchFiles = @(
+  @{ Name = 'CA022100.binp'; Hash = '09C8A87064A2096438418DF80725C089CCC09A610CDB4805ED6993B822CB604E' },
+  @{ Name = 'CA022110.binp'; Hash = '0A722663AFB4AC7F391A6A81DD1D4708D52B0C3749B614697C766A7084DCB747' },
+  @{ Name = 'default.xexp';  Hash = 'BC61B8AD072E8F62A56C6D32712EEE5B44F34B72AA4225C3C6569DD7F25DB374' }
 )
 
 function Get-FileSha256([string]$Path) {
@@ -54,6 +66,16 @@ function Test-ExpectedFiles([string]$Directory, [object[]]$Entries) {
   return $true
 }
 
+function Get-GameDumpKind([string]$Directory) {
+  if (Test-ExpectedFiles $Directory $DiscBaseFiles) {
+    return 'disc'
+  }
+  if (Test-ExpectedFiles $Directory $GodBaseFiles) {
+    return 'god'
+  }
+  return $null
+}
+
 function Remove-ExtractionTemporaryDirectory {
   if (-not (Test-Path -LiteralPath $Extracting)) {
     return
@@ -77,8 +99,8 @@ try {
     throw 'The recomp EXE is missing. Re-extract the release and try again.'
   }
 
-  $baseReady = Test-ExpectedFiles $GameData $BaseFiles
-  if ($baseReady) {
+  $gameDump = Get-GameDumpKind $GameData
+  if ($null -ne $gameDump) {
     Write-Host 'game_data looks good. Skipping ISO extraction.' -ForegroundColor Green
   }
   else {
@@ -106,18 +128,31 @@ try {
     if ($LASTEXITCODE -ne 0) {
       throw "ISO extraction failed (error $LASTEXITCODE)."
     }
-    if (-not (Test-ExpectedFiles $Extracting $BaseFiles)) {
+    $gameDump = Get-GameDumpKind $Extracting
+    if ($null -eq $gameDump) {
       throw "That ISO doesn't match the supported SDOJ dump."
     }
 
     Move-Item -LiteralPath $Extracting -Destination $GameData
-    $baseReady = $true
     Write-Host 'ISO extracted and verified.' -ForegroundColor Green
   }
 
+  $PatchFiles = if ($gameDump -eq 'god') { $GodPatchFiles } else { $DiscPatchFiles }
   $patchesReady = Test-ExpectedFiles $GameData $PatchFiles
   if ($patchesReady) {
     Write-Host 'TU1 is already set up.' -ForegroundColor Green
+  }
+  elseif ($gameDump -eq 'god') {
+    if (-not (Test-ExpectedFiles $Root $GodPatchFiles)) {
+      throw 'GoD TU patch files not found. Extract CA022100.binp, CA022110.binp, and default.xexp from TU_...0085 and put them next to launch.bat.'
+    }
+    foreach ($entry in $GodPatchFiles) {
+      Copy-Item -LiteralPath (Join-Path $Root $entry.Name) -Destination (Join-Path $GameData $entry.Name) -Force
+    }
+    if (-not (Test-ExpectedFiles $GameData $GodPatchFiles)) {
+      throw 'GoD TU setup failed its final check.'
+    }
+    Write-Host 'GoD TU files installed.' -ForegroundColor Green
   }
   else {
     $tuCandidates = @(Get-ChildItem -LiteralPath $Root -File | Where-Object {
@@ -125,7 +160,7 @@ try {
     })
     $titleUpdate = $null
     foreach ($candidate in $tuCandidates) {
-      if ((Get-FileSha256 $candidate.FullName) -eq $ExpectedTitleUpdateHash) {
+      if ((Get-FileSha256 $candidate.FullName) -eq $ExpectedDiscTitleUpdateHash) {
         $titleUpdate = $candidate
         break
       }
