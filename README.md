@@ -4,8 +4,37 @@ Dodonpachi Saidaioujou Recompilation using [rexglue](https://github.com/rexglue/
 
 # Requirements
 
-- Your own DoDonPachi Saidaioujou Xbox 360 ISO dump (MD5 366517C07EA2B1912F9B33F208C866BB)
+- Your own DoDonPachi Saidaioujou Xbox 360 dump
 - Title Update 1.01 file
+
+# First launch
+
+For the disc release:
+
+1. Put the SDOJ iso beside the recomp executable.
+2. Put the TU_11LK1V7... TU1 file in the same folder.
+3. Run "launch.bat/launch.sh".
+
+For the Games on Demand release:
+
+1. Put a converted GoD iso beside the recomp executable.
+2. Extract `CA022100.binp`, `CA022110.binp`, and `default.xexp` from the matching TU_...0085 file and put them beside the recomp executable.
+3. Run "launch.bat/launch.sh".
+
+The first launch extracts the ISO when needed and installs the three matching TU1
+patch files into game_data.
+
+For the later launches it verifies the existing game_data and
+skips both extraction steps when they have already completed. After successful
+setup, the ISO and TU container may be removed.
+
+# Settings 
+
+There are some hardcoded arguments in launch.bat/launch.sh. You can edit them as you wish, but don't remove `--xex_apply_patches=true`.
+
+You can open the settings by pressing F4 in game. To turn on keyboard inputs, go to the Input tab and turn on `mnk_mode`. For best latency, it is recommneded to use `input_backend` set to `xinput`. To achieve more consistent results, running the game through Special K is recommended.
+
+The saved settings are stored in the saidaioujou_recomp_tu1.toml config file.
 
 # Known issues
 
@@ -35,7 +64,7 @@ Run:
 
 ### Linux
 
-You need CMake 3.25 or newer, Ninja, and Clang with C++23 support. The linux-amd64-release preset looks for clang-20/clang++-20 specifically.
+You need CMake 3.25 or newer, Ninja, and Clang with C++23 support.
 
 You'll also need a few system packages for the native UI, input and audio backends. On Debian/Ubuntu:
 
@@ -49,27 +78,6 @@ Run:
 `cmake --build --preset linux-amd64-release --parallel`
 
 After building, copy librexruntime.so and libTracyClient.so from thirdparty/rexglue-sdk/out/linux-amd64/ into the build output folder (out/build/linux-amd64-release/), next to the saidaioujou_recomp_tu1 executable. They aren't copied there automatically, and the executable won't start without them.
-
-# First launch
-
-1. Put SDOJ iso file in this folder, beside the recomp exe.
-2. Put the TU_11LK1V7... TU1 file in the same folder.
-3. Run "launch.bat".
-
-The first launch extracts the ISO to game_data and installs the three TU1 patch
-files.
-
-For the later launches it verifies the existing game_data and
-skips both extraction steps when they have already completed. After successful
-setup, the ISO and TU container may be removed.
-
-# Settings 
-
-There are some hardcoded arguments in launch.bat/launch.sh. You can edit them as you wish, but don't remove `--xex_apply_patches=true`.
-
-You can open the settings by pressing F4 in game. To turn on keyboard inputs, go to the Input tab and turn on mnk_mode. For best latency, it is recommneded to use input_backend set to xinput. To achieve more consistent results, running the game through Special K is recommended. If you turn off VSync (it is disabled by default), you might have to cap the FPS manually to 60 via Special K or any other way.
-
-The saved settings are stored in the saidaioujou_recomp_tu1.toml config file.
 
 # Patches
 
