@@ -11478,6 +11478,7 @@ DEFINE_REX_FUNC(sub_82125298) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
 	uint32_t ea{};
+	static uint32_t music_rows;
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x8222a9a8
@@ -11518,12 +11519,39 @@ DEFINE_REX_FUNC(sub_82125298) {
 	ctx.r28.s64 = ctx.r11.s64 + -17816;
 	// addi r5,r10,26704
 	ctx.r5.s64 = ctx.r10.s64 + 26704;
+	// the stock table doesn't have enough space for boss music options.
+	// make a larger copy so the boss settings fit
+	if (music_rows == 0) {
+		ctx.r3.s64 = 11 * 92;
+		sub_8221BBA0(ctx, base);
+		music_rows = ctx.r3.u32;
+	}
+	for (uint32_t row = 0; row < 5; ++row) {
+		for (uint32_t word = 0; word < 23; ++word) {
+			REX_STORE_U32(music_rows + row * 92 + word * 4,
+				REX_LOAD_U32(0x82626850 + row * 92 + word * 4));
+		}
+	}
+	for (uint32_t row = 0; row < 3; ++row) {
+		for (uint32_t word = 0; word < 23; ++word) {
+			REX_STORE_U32(music_rows + (5 + row) * 92 + word * 4,
+				REX_LOAD_U32(0x82626850 + word * 4));
+		}
+		REX_STORE_U32(music_rows + (5 + row) * 92 + 4, 72 + row);
+	}
+	for (uint32_t row = 5; row < 8; ++row) {
+		for (uint32_t word = 0; word < 23; ++word) {
+			REX_STORE_U32(music_rows + (row + 3) * 92 + word * 4,
+				REX_LOAD_U32(0x82626850 + row * 92 + word * 4));
+		}
+	}
+	ctx.r5.u64 = music_rows;
 	// mr r3,r28
 	ctx.r3.u64 = ctx.r28.u64;
 	// li r7,0
 	ctx.r7.s64 = 0;
-	// li r6,8
-	ctx.r6.s64 = 8;
+	// li r6,11
+	ctx.r6.s64 = 11;
 	// li r4,9
 	ctx.r4.s64 = 9;
 	// bl 0x8212fd68

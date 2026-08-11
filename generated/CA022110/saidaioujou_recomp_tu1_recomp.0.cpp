@@ -49180,6 +49180,26 @@ loc_88045ED0:
 	ctx.r11.s64 = ctx.r11.s64 + -25632;
 	// stw r11,12(r5)
 	REX_STORE_U32(ctx.r5.u32 + 12, ctx.r11.u32);
+	// the game normally preloads only one version of each boss song when the
+	// mode loads. load both versions so changing them in settings works immediately
+	// BOSS:
+	// 0x885F9E48 = original
+	// 0x885FA318 = xbox 360
+
+	// LAST BOSS:
+	// 0x885F9F50 = original
+	// 0x885FA420 = xbox 360
+
+	// FINAL BOSS:
+	// 0x885FA000 = original
+	// 0x885FA4D0 = xbox 360
+	REX_STORE_U32(ctx.r5.u32 + 24, ctx.r11.u32);
+	REX_STORE_U32(ctx.r5.u32 + 12,
+		REX_LOAD_U32(ctx.r5.u32) == 0x885F9E48 ? 0x885FA318 : 0x885F9E48);
+	REX_STORE_U32(ctx.r5.u32 + 16,
+		REX_LOAD_U32(ctx.r5.u32 + 4) == 0x885F9F50 ? 0x885FA420 : 0x885F9F50);
+	REX_STORE_U32(ctx.r5.u32 + 20,
+		REX_LOAD_U32(ctx.r5.u32 + 8) == 0x885FA000 ? 0x885FA4D0 : 0x885FA000);
 	// lwz r11,0(r3)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r3.u32 + 0);
 	// lwz r10,764(r11)
