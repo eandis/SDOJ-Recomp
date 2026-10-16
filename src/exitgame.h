@@ -2,7 +2,7 @@
 
 #include <rex/rex_app.h>
 
-namespace sdoj_pc_exit {
+namespace pc_exit {
 
 inline rex::ReXApp* app = nullptr;
 

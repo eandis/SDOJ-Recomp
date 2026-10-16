@@ -19,3 +19,4 @@ CMakeUserPresets.json
 Dockerfile
 build-linux-docker.cmd
 .gitattributes
+.github/workflows/build-linux-amd64.yml
