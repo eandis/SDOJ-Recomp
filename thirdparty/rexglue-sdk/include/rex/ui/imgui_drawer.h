@@ -17,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include <rex/ui/immediate_drawer.h>
@@ -39,10 +40,13 @@ class Window;
 class ImGuiDrawer : public WindowInputListener, public UIDrawer {
  public:
   using FontSetupCallback = std::function<void(ImFontAtlas*)>;
+  using FrameCallback = std::function<void()>;
   ImGuiDrawer(Window* window, size_t z_order, FontSetupCallback font_setup = nullptr);
   ~ImGuiDrawer();
 
   ImGuiIO& GetIO();
+
+  void SetFrameCallback(FrameCallback callback) { frame_callback_ = std::move(callback); }
 
   void AddDialog(ImGuiDialog* dialog);
   void RemoveDialog(ImGuiDialog* dialog);
@@ -101,6 +105,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   size_t dialog_loop_next_index_ = SIZE_MAX;
 
   Presenter* presenter_ = nullptr;
+
+  FrameCallback frame_callback_;
 
   ImmediateDrawer* immediate_drawer_ = nullptr;
   // Resources specific to an immediate drawer - must be destroyed before

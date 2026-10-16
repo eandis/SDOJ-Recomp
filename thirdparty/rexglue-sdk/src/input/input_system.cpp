@@ -22,7 +22,11 @@
 #include <rex/input/xinput/xinput_input_driver.h>
 #include <rex/logging.h>
 
+#if REX_PLATFORM_WIN32
+REXCVAR_DEFINE_STRING(input_backend, "xinput", "Input", "Input backend: sdl, xinput")
+#else
 REXCVAR_DEFINE_STRING(input_backend, "sdl", "Input", "Input backend: sdl, xinput")
+#endif
     .allowed({"sdl", "xinput"});
 
 REXCVAR_DEFINE_BOOL(guide_button, false, "Input", "Enable guide button pass-through");
@@ -38,9 +42,14 @@ X_STATUS InputSystem::Setup() {
 
 void InputSystem::Shutdown() {
   drivers_.clear();
+  active_state_observer_ = nullptr;
+  active_state_provider_ = nullptr;
 }
 
 void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
+  driver->set_is_active_callback([this]() {
+    return active_state_.load(std::memory_order_acquire);
+  });
   drivers_.push_back(std::move(driver));
 }
 
@@ -52,12 +61,32 @@ void InputSystem::AttachWindow(rex::ui::Window* window) {
 }
 
 void InputSystem::SetActiveCallback(std::function<bool()> callback) {
-  for (auto& driver : drivers_) {
-    driver->set_is_active_callback(callback);
+  active_state_provider_ = std::move(callback);
+  RefreshActiveState();
+}
+
+void InputSystem::SetActiveStateObserver(std::function<void(bool)> observer) {
+  active_state_observer_ = std::move(observer);
+  if (active_state_observer_) {
+    active_state_observer_(active_state_.load(std::memory_order_acquire));
   }
 }
 
 void InputSystem::RefreshActiveState() {
+  const bool active = active_state_provider_ ? active_state_provider_() : true;
+  const bool previous = active_state_.load(std::memory_order_acquire);
+  if (previous == active) {
+    return;
+  }
+  if (!active) {
+    active_state_.store(false, std::memory_order_release);
+  }
+  if (active_state_observer_) {
+    active_state_observer_(active);
+  }
+  if (active) {
+    active_state_.store(true, std::memory_order_release);
+  }
   for (auto& driver : drivers_) {
     driver->OnActiveStateChanged();
   }

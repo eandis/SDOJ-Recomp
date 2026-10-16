@@ -17,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -133,6 +134,8 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
     return defaults;
   }
 
+  virtual bool OnStartupError(const std::string& message);
+
   /// Called from the ImGui drawer's Initialize() after the default font is
   /// registered and before the atlas is built. Override to add additional
   /// fonts via AddFontFromMemoryTTF() or similar.
@@ -193,6 +196,7 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
 
  private:
   void ShutdownFromUIThread();
+  bool FailStartup(const std::string& message);
 
   std::function<void(PathConfig)> MakeResumeCallback();
 
@@ -217,6 +221,7 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   std::unique_ptr<ui::Window> window_;
   std::thread module_thread_;
   std::atomic<bool> shutting_down_{false};
+  bool startup_error_shown_ = false;
   std::unique_ptr<ui::ImmediateDrawer> immediate_drawer_;
   std::unique_ptr<ui::ImGuiDrawer> imgui_drawer_;
 

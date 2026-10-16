@@ -10,6 +10,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <atomic>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -36,6 +38,7 @@ class InputSystem : public system::IInputSystem {
   void AddDriver(std::unique_ptr<InputDriver> driver);
   void AttachWindow(rex::ui::Window* window);
   void SetActiveCallback(std::function<bool()> callback);
+  void SetActiveStateObserver(std::function<void(bool)> observer);
   void RefreshActiveState();
 
   X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES* out_caps);
@@ -47,6 +50,9 @@ class InputSystem : public system::IInputSystem {
   rex::ui::Window* window_ = nullptr;
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;
+  std::function<bool()> active_state_provider_;
+  std::function<void(bool)> active_state_observer_;
+  std::atomic<bool> active_state_{true};
 };
 
 /// Create a default InputSystem with SDL + NOP drivers.

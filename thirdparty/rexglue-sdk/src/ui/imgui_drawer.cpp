@@ -394,6 +394,9 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   dialog_loop_next_index_ = SIZE_MAX;
 
   ImGui::Render();
+  if (frame_callback_) {
+    frame_callback_();
+  }
   ImDrawData* draw_data = ImGui::GetDrawData();
   if (draw_data) {
     RenderDrawLists(draw_data, ui_draw_context);

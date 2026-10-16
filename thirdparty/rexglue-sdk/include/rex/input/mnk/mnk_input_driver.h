@@ -14,6 +14,7 @@
 #include <rex/ui/window_listener.h>
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -47,6 +48,7 @@ class MnkInputDriver final : public InputDriver,
   void OnMouseMove(rex::ui::MouseEvent& e) override;
 
   // WindowListener
+  void OnOpened(rex::ui::UISetupEvent& e) override;
   void OnClosing(rex::ui::UIEvent& e) override;
   void OnLostFocus(rex::ui::UISetupEvent& e) override;
   void OnGotFocus(rex::ui::UISetupEvent& e) override;
@@ -54,29 +56,31 @@ class MnkInputDriver final : public InputDriver,
  private:
   uint32_t UserIndex() const;
   bool IsEnabled() const;
-  void CenterCursor();
-  void UpdateMouseCapture();
+  struct State;
+  void DetachWindow();
+  void QueueMouseUpdate(bool active);
+  static void UpdateMouseMode(State& state);
   void SetKeyState(uint16_t vk, bool down);
   void EnqueueKeystroke(uint16_t vk_pad, bool down);
 
-  rex::ui::Window* attached_window_ = nullptr;
-
-  std::mutex state_mutex_;
-  bool key_down_[256] = {};
-
-  // Mouse delta tracking
-  int32_t mouse_dx_ = 0;
-  int32_t mouse_dy_ = 0;
-  int32_t prev_mouse_x_ = 0;
-  int32_t prev_mouse_y_ = 0;
-  bool mouse_captured_ = false;
-  bool has_focus_ = true;
-
-  // Keystroke queue
-  std::queue<X_INPUT_KEYSTROKE> keystroke_queue_;
-
-  // Packet number incremented on state change
-  uint32_t packet_number_ = 0;
+  struct State {
+    std::mutex mutex;
+    rex::ui::Window* window = nullptr;
+    rex::ui::WindowedAppContext* app_context = nullptr;
+    bool mouse_update_queued = false;
+    uint64_t window_generation = 0;
+    bool active = true;
+    bool has_focus = true;
+    bool mouse_active = false;
+    uintptr_t ime_context = 0;
+    bool ime_disabled = false;
+    bool key_down[256]{};
+    int32_t mouse_dx = 0, mouse_dy = 0;
+    int32_t prev_mouse_x = 0, prev_mouse_y = 0;
+    std::queue<X_INPUT_KEYSTROKE> keystroke_queue;
+    uint32_t packet_number = 0;
+  };
+  std::shared_ptr<State> state_ = std::make_shared<State>();
 };
 
 }  // namespace rex::input::mnk

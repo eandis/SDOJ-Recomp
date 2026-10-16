@@ -69,9 +69,20 @@ bool ReXApp::OnInitialize() {
   }
 
   if (!ConstructRuntime(*paths))
-    return false;
+    return startup_error_shown_;
   LaunchModule();
   return true;
+}
+
+bool ReXApp::OnStartupError(const std::string& message) {
+  rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, message);
+  return false;
+}
+
+bool ReXApp::FailStartup(const std::string& message) {
+  REXLOG_ERROR("{}", message);
+  startup_error_shown_ = OnStartupError(message);
+  return false;
 }
 
 bool ReXApp::SetupEnvironment() {
@@ -164,16 +175,11 @@ bool ReXApp::SetupEnvironment() {
 
 bool ReXApp::ConstructRuntime(const PathConfig& paths) {
   if (paths.game_data_root.empty()) {
-    auto msg = std::string("--game_data_root was not provided.");
-    REXLOG_ERROR("{}", msg);
-    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
-    return false;
+    return FailStartup("--game_data_root was not provided.");
   }
   if (!std::filesystem::is_directory(paths.game_data_root)) {
-    auto msg = fmt::format("--game_data_root does not exist: {}", paths.game_data_root.string());
-    REXLOG_ERROR("{}", msg);
-    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
-    return false;
+    return FailStartup(
+        fmt::format("--game_data_root does not exist: {}", paths.game_data_root.string()));
   }
 
   runtime_ = std::make_unique<rex::Runtime>(paths.game_data_root, paths.user_data_root,
@@ -191,8 +197,7 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
 
   auto status = runtime_->Setup(ppc_info_, std::move(config_));
   if (XFAILED(status)) {
-    REXLOG_ERROR("Runtime setup failed: {:08X}", status);
-    return false;
+    return FailStartup(fmt::format("Runtime setup failed: {:08X}", status));
   }
 
   if (window_ && runtime_->input_system()) {
@@ -209,10 +214,14 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
       input_sys->SetActiveCallback([this]() {
         if (settings_overlay_)
           return false;
-        if (!debug_overlay_ && !console_overlay_)
+        if (console_overlay_)
+          return false;
+        if (!debug_overlay_)
           return true;
-        return !imgui_drawer_->GetIO().WantCaptureMouse;
+        return !imgui_drawer_->GetIO().WantCaptureMouse &&
+               !imgui_drawer_->GetIO().WantCaptureKeyboard;
       });
+      imgui_drawer_->SetFrameCallback([input_sys]() { input_sys->RefreshActiveState(); });
     }
   }
 
@@ -233,27 +242,20 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
     std::replace(host_tail.begin(), host_tail.end(), '\\', '/');
     auto xex_host = paths.game_data_root / host_tail;
     if (!std::filesystem::is_regular_file(xex_host)) {
-      auto msg = fmt::format("Entrypoint XEX not found: {}", xex_host.string());
-      REXLOG_ERROR("{}", msg);
-      rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
-      return false;
+      return FailStartup(fmt::format("Entrypoint XEX not found: {}", xex_host.string()));
     }
   }
 
   status = runtime_->LoadXexImage(xex_image);
   if (XFAILED(status)) {
-    auto msg = fmt::format("Failed to load XEX ({}): {:08X}", xex_image, status);
-    REXLOG_ERROR("{}", msg);
-    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
-    return false;
+    return FailStartup(fmt::format("Failed to load XEX ({}): {:08X}", xex_image, status));
   }
 
   OnPostLoadXexImage();
 
   if (ppc_info_.rexcrt_heap) {
     if (!rex::kernel::crt::InitHeap(REXCVAR_GET(rexcrt_heap_size_mb), runtime_->memory())) {
-      REXLOG_ERROR("Failed to initialize rexcrt heap");
-      return false;
+      return FailStartup("Failed to initialize rexcrt heap");
     }
   }
 
@@ -319,12 +321,20 @@ bool ReXApp::SetupPresentation() {
             debug_overlay_ = std::make_unique<ui::DebugOverlayDialog>(imgui_drawer_.get(),
                                                                       frame_stats_provider_);
           }
+          if (runtime_ && runtime_->input_system()) {
+            static_cast<rex::input::InputSystem*>(runtime_->input_system())
+                ->RefreshActiveState();
+          }
         });
         rex::ui::RegisterBind("bind_console", "Backtick", "Toggle console overlay", [this] {
           if (console_overlay_) {
             console_overlay_.reset();
           } else {
             console_overlay_ = std::make_unique<ui::ConsoleDialog>(imgui_drawer_.get(), log_sink_);
+          }
+          if (runtime_ && runtime_->input_system()) {
+            static_cast<rex::input::InputSystem*>(runtime_->input_system())
+                ->RefreshActiveState();
           }
         });
         rex::ui::RegisterBind("bind_settings", "F4", "Toggle settings overlay", [this] {
@@ -355,8 +365,10 @@ void ReXApp::LaunchModule() {
 
     auto main_thread = runtime_->PrepareModuleLaunch();
     if (!main_thread) {
-      REXLOG_ERROR("Failed to launch module");
-      app_context().QuitFromUIThread();
+      FailStartup("Failed to launch module");
+      if (!startup_error_shown_) {
+        app_context().QuitFromUIThread();
+      }
       return;
     }
 
@@ -389,7 +401,9 @@ std::function<void(PathConfig)> ReXApp::MakeResumeCallback() {
     if (shutting_down_.load(std::memory_order_acquire))
       return;
     if (!ConstructRuntime(std::move(paths))) {
-      app_context().QuitFromUIThread();
+      if (!startup_error_shown_) {
+        app_context().QuitFromUIThread();
+      }
       return;
     }
     LaunchModule();
@@ -434,6 +448,7 @@ void ReXApp::OnDestroy() {
   console_overlay_.reset();
   debug_overlay_.reset();
   if (imgui_drawer_) {
+    imgui_drawer_->SetFrameCallback(nullptr);
     imgui_drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);
     imgui_drawer_.reset();
   }
