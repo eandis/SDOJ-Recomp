@@ -27,6 +27,10 @@ SettingsDialog::SettingsDialog(ImGuiDrawer* imgui_drawer, std::filesystem::path 
 
 SettingsDialog::~SettingsDialog() {}
 
+static bool IsHiddenFromSettings(const std::string& name) {
+  return name == "d3d12_bindless";
+}
+
 static const char* LifecycleBadge(rex::cvar::Lifecycle lc) {
   switch (lc) {
     case rex::cvar::Lifecycle::kHotReload:
@@ -289,6 +293,9 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
 
   ImGui::BeginChild("##cvars", ImVec2(0, -30.0f), false);
   for (auto& entry : registry) {
+    if (IsHiddenFromSettings(entry.name)) {
+      continue;
+    }
     // Filter by category (unless searching).
     if (!searching) {
       if (!category_matches(entry.category)) {
