@@ -1,10 +1,32 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
+#include <algorithm>
 #include <atomic>
+
+constexpr uint32_t kTrackedPlayerCount = 2;
+
+extern std::atomic_bool g_normal_shot_active[kTrackedPlayerCount];
 
 extern std::atomic<int32_t> pending_render_work;
 
 namespace {
+
+constexpr uint32_t kPlayer1StateBase = 0x88611630;
+constexpr uint32_t kPlayerStateOffset = 116;
+constexpr uint32_t kWeaponModeOffset = 189;
+constexpr double kSayaShotScore = 1.0;
+constexpr double kSayaFiringRenderWork = 2900.0;
+constexpr double kSayaShotRenderWork = 120.0;
+constexpr uint32_t kPlayerShotManagerAddress = 0x8860BCD8;
+constexpr uint32_t kShotActiveHeadOffset = 36;
+constexpr uint32_t kShotNextOffset = 224;
+constexpr uint32_t kShotHandlerOffset = 216;
+constexpr uint32_t kShotOwnerOffset = 236;
+constexpr uint32_t kSayaShotFlyingHandler = 0x88123688;
+constexpr uint32_t kSayaShotHitHandler = 0x881238C8;
+constexpr uint32_t kPlayer1WeaponRecord = 0x88612AB8;
+constexpr uint32_t kShotListLimit = 1024;
+constexpr uint32_t kSayaShotThreshold = 15;
 
 // use the previously saved renderwork if its nonzero
 // otherwise keep the live value originally calculated by the game
@@ -37709,6 +37731,9 @@ struct SlowdownInputs {
 	double largeStars;                  // large stars used during the later stage 5 boss phases
 	uint32_t stage5UnknownCount;        // something at section 5 of stage 5
 	double playerShotWork;              // player shot/laser processing work, only used in stage 5 section 5
+	bool normalShotActive;              // whether a player is firing a normal shot.
+	bool sayaNormalShotActive;          // saya normal shot gets less synthetic slowdown.
+	uint32_t sayaShots;                 // player 1's saya shots alive this frame.
 	uint32_t bossScript;                // latest boss script callback
 };
 
@@ -37815,7 +37840,10 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 		if (s.expertMode) {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.014999999664723873, score);
 			if (s.section == 1) score = std::fma(s.enemyBullets, 0.010999999940395355, score);
-			if (s.bossScript == 0x88172E10) score = -std::fma(s.enemyBullets, 0.04f, -score);
+			if (s.bossScript == 0x88172E10) score = -std::fma(s.enemyBullets, 0.04f, -score); // s3 boss final 1 
+			if (s.bossScript == 0x88170E78) score = -std::fma(s.renderWork, 0.0002f, -score); // s3 boss final 2
+			if (s.bossScript == 0x88170E78 && s.normalShotActive) score = std::fma(s.renderWork, 0.00016f, score); // s3 boss final 3
+			
 			if (s.section == 5) score = std::fma(s.enemyBullets, 0.017500000074505806, score);
 		} else {
 			if (s.section == 0) score = std::fma(s.enemyBullets, 0.014999999664723873, score);
@@ -37952,8 +37980,8 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			}
 		}
 
-		// hibachi?
-		if (s.section >= 6) score = std::fma(s.enemyBullets, 0.0094999996945261955, score);
+		
+		if (s.section >= 6) score = std::fma(s.enemyBullets, 0.0094999996945261955, score); // hibachi garbage
 		if (s.section == 1 && s.scroll < 78) score += 1.5;
 		if (s.scroll > 78 && s.scroll < 216) {
 			score += slowdown_float_mul(s.renderWork, 3.9999999e-05f);
@@ -37967,7 +37995,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 
 		// boss entrance slowdown.
 		if (s.section == 5) {
-			if (s.scroll < 484) {
+			if (s.scroll < 480) {
 				score = std::fma(s.generalVisualEffects, 0.01, score);
 			}
 
@@ -37982,7 +38010,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			score = std::fma(s.projectileExplosionEffects, 0.05000000074505806, score);
 		}
 
-		// hibachi stuff?
+		// more hibachi/inbachi garbage
 		if (s.section >= 6) {
 			score = std::fma(s.smallStars, 0.0099999997764825821, score);
 			score = std::fma(s.largeStars, 0.0099999997764825821, score);
@@ -38405,6 +38433,25 @@ loc_88123FE8:
 	readable_inputs.smallStars = ctx.f4.f64;
 	readable_inputs.largeStars = ctx.f1.f64;
 	readable_inputs.playerShotWork = ctx.f5.f64;
+	{
+		readable_inputs.normalShotActive =
+			g_normal_shot_active[0].load(std::memory_order_relaxed) &&
+			REX_LOAD_U8(kPlayer1StateBase + kPlayerStateOffset) == 0 &&
+			REX_LOAD_U8(kPlayer1StateBase + kWeaponModeOffset) == 0;
+		const uint32_t manager = REX_LOAD_U32(kPlayerShotManagerAddress);
+		uint32_t sayaShots = 0;
+		uint32_t shot = manager != 0 ? REX_LOAD_U32(manager + kShotActiveHeadOffset) : 0;
+		for (uint32_t i = 0; shot != 0 && i < kShotListLimit; ++i) {
+			const uint32_t handler = REX_LOAD_U32(shot + kShotHandlerOffset);
+			if ((handler == kSayaShotFlyingHandler || handler == kSayaShotHitHandler) &&
+				REX_LOAD_U32(shot + kShotOwnerOffset) == kPlayer1WeaponRecord) {
+				++sayaShots;
+			}
+			shot = REX_LOAD_U32(shot + kShotNextOffset);
+		}
+		readable_inputs.sayaNormalShotActive = sayaShots >= kSayaShotThreshold;
+		readable_inputs.sayaShots = sayaShots;
+	}
 	// lwz r3,-4(r31)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r31.u32 + -4);
 	readable_inputs.stage5UnknownCount = ctx.r3.u32;
@@ -38415,6 +38462,17 @@ loc_88123FE8:
 	if (!boss_active) REX_STORE_U32(0x886B1D68, 0);
 	ctx.f30.u64 = REX_LOAD_U64(ctx.r11.u32 + 456);
 	ctx.f0.f64 = calculate_slowdown_score(readable_inputs);
+	if (readable_inputs.sayaShots != 0) {
+		// the same frame without her shot sprites, plus the fixed shot score
+		SlowdownInputs without_shots = readable_inputs;
+		const double ramp = std::min(1.0,
+			double(readable_inputs.sayaShots) / double(kSayaShotThreshold));
+		const double shot_work = kSayaFiringRenderWork * ramp +
+			kSayaShotRenderWork * double(readable_inputs.sayaShots);
+		without_shots.renderWork = std::max<int32_t>(
+			0, readable_inputs.renderWork - int32_t(shot_work + 0.5));
+		ctx.f0.f64 = calculate_slowdown_score(without_shots) + kSayaShotScore * ramp;
+	}
 	goto loc_88124598;
 loc_88124598:
 	// cmpwi cr6,r6,0
@@ -38497,7 +38555,8 @@ loc_88124608:
 	ctx.fpscr.disableFlushMode();
 	ctx.f0.f64 = -std::fma(ctx.f1.f64, ctx.f30.f64, -ctx.f0.f64);
 loc_8812461C:
-	// fcmpu cr6,f0,f31
+	// saya's shot is handled when the score is calculated (see kSayaShotScore)
+		// fcmpu cr6,f0,f31
 	ctx.fpscr.disableFlushMode();
 	ctx.cr6.compare(ctx.f0.f64, ctx.f31.f64);
 	// bge cr6,0x88124628
@@ -38506,8 +38565,8 @@ loc_8812461C:
 	ctx.f0.f64 = ctx.f31.f64;
 loc_88124628:
 	{
-		const uint32_t slowdown_depth = ctx.f0.f64 >= 48.0 ? 4 :
-			ctx.f0.f64 >= 32.0 ? 3 : ctx.f0.f64 >= ctx.f12.f64 ? 2 : 1;
+			const uint32_t slowdown_depth = ctx.f0.f64 >= 50.0 ? 4 :
+				ctx.f0.f64 >= 34.2 ? 3 : ctx.f0.f64 >= ctx.f12.f64 ? 2 : 1;
 		ctx.r10.u64 = slowdown_depth;
 	}
 	// lis r9,-30584

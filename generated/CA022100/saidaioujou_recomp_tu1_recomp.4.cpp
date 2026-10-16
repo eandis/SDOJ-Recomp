@@ -1,5 +1,19 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/settings.h"
+#include <atomic>
 
+namespace {
+
+constexpr uint32_t kTrackedPlayerCount = 2;
+constexpr uint32_t kPlayerStateOffset = 116;
+constexpr uint32_t kWeaponModeOffset = 189;
+constexpr uint32_t kFireRequestOffset = 20;
+constexpr uint32_t kPlayerControlOffset = 112;
+constexpr uint32_t kPlayerIndexOffset = 4;
+
+}
+
+std::atomic_bool g_normal_shot_active[kTrackedPlayerCount]{};
 
 DEFINE_REX_FUNC(sub_880B32B8) {
 	REX_FUNC_PROLOGUE();
@@ -15682,6 +15696,9 @@ DEFINE_REX_FUNC(sub_880B9FC8) {
 	ctx.r28.u64 = ctx.r10.u64 + ctx.r11.u64;
 	// beq 0x880ba030
 	if (ctx.cr0.eq) goto loc_880BA030;
+	if (ctx.r26.u32 < kTrackedPlayerCount) {
+		g_normal_shot_active[ctx.r26.u32].store(false, std::memory_order_relaxed);
+	}
 	// li r30,0
 	ctx.r30.s64 = 0;
 	// li r3,0
@@ -16028,6 +16045,10 @@ loc_880BA278:
 	// stb r30,189(r31)
 	REX_STORE_U8(ctx.r31.u32 + 189, ctx.r30.u8);
 loc_880BA27C:
+	if (ctx.r26.u32 < kTrackedPlayerCount) g_normal_shot_active[ctx.r26.u32].store(
+		REX_LOAD_U8(ctx.r31.u32 + kPlayerStateOffset) == 0 &&
+		REX_LOAD_U8(ctx.r31.u32 + kWeaponModeOffset) == 0 &&
+		REX_LOAD_U32(ctx.r28.u32 + kFireRequestOffset) != 0, std::memory_order_relaxed);
 	// lwz r11,20(r28)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r28.u32 + 20);
 	// cmpwi cr6,r11,0
@@ -16758,6 +16779,13 @@ loc_880BA788:
 	ctx.cr0.compare<uint32_t>(ctx.r11.u32, 0, ctx.xer);
 	// beq 0x880ba8cc
 	if (ctx.cr0.eq) goto loc_880BA8CC;
+	{
+		const uint32_t playerControl = REX_LOAD_U32(ctx.r30.u32 + kPlayerControlOffset);
+		const uint32_t playerIndex = REX_LOAD_U32(playerControl + kPlayerIndexOffset);
+		if (playerIndex < kTrackedPlayerCount) {
+			g_normal_shot_active[playerIndex].store(false, std::memory_order_relaxed);
+		}
+	}
 	// lbz r11,117(r30)
 	ctx.r11.u64 = REX_LOAD_U8(ctx.r30.u32 + 117);
 	// cmplwi cr6,r11,1
@@ -17819,6 +17847,13 @@ loc_880BAEC8:
 	// bne cr6,0x880baf20
 	if (!ctx.cr6.eq) goto loc_880BAF20;
 loc_880BAF10:
+	{
+		const uint32_t playerControl = REX_LOAD_U32(ctx.r30.u32 + kPlayerControlOffset);
+		const uint32_t playerIndex = REX_LOAD_U32(playerControl + kPlayerIndexOffset);
+		if (playerIndex < kTrackedPlayerCount) {
+			g_normal_shot_active[playerIndex].store(false, std::memory_order_relaxed);
+		}
+	}
 	// stw r22,8(r11)
 	REX_STORE_U32(ctx.r11.u32 + 8, ctx.r22.u32);
 	// mr r3,r30
