@@ -1,6 +1,6 @@
 # SDOJ-Recomp
 
-Dodonpachi Saidaioujou Recompilation using [rexglue](https://github.com/rexglue/rexglue-sdk).
+Dodonpachi Saidaioujou Recompilation using [ReXGlue](https://github.com/rexglue/rexglue-sdk).
 
 # Requirements
 
