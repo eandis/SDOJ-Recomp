@@ -157,4 +157,16 @@ else()
     find_package(CURL REQUIRED)
     target_include_directories(saidaioujou_recomp_tu1 PRIVATE ${GTK3_INCLUDE_DIRS})
     target_link_libraries(saidaioujou_recomp_tu1 PRIVATE ${GTK3_LIBRARIES} CURL::libcurl)
+
+    # copy the runtime libraries next to the executable
+    set(_sdoj_runtime_libs $<TARGET_FILE:rexruntime>)
+    if(TARGET TracyClient)
+        list(APPEND _sdoj_runtime_libs $<TARGET_FILE:TracyClient>)
+    endif()
+    add_custom_command(TARGET saidaioujou_recomp_tu1 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${_sdoj_runtime_libs}
+            "$<TARGET_FILE_DIR:saidaioujou_recomp_tu1>"
+        VERBATIM
+    )
 endif()
