@@ -1,36 +1,18 @@
 #include "saidaioujou_recomp_tu1_init.h"
-#include "../../src/sdoj_patch_flags.h"
+#include "../../src/patch_flags.h"
 
 
 #include <atomic>
-#include <chrono>
-#include <thread>
-
-// render patch. run the game's render callback batch earlier and wait a bit for the finished buffer
-// the original calls later in the frame are skipped so nothing gets duplicated
-extern uint32_t late_render_calls_to_skip;
-extern std::atomic<uint32_t> render_worker_state;
 
 // renderwork is calculated on a separate thread from the thread that does the rest of slowdown math
 // during slowdown the renderwork value can get replaced with a 0 from an empty batch
 // store the latest real value here for use later
 std::atomic<int32_t> pending_render_work{0};
 
-namespace {
-
-constexpr uint32_t kEarlyRenderMarker = 0x8217F65E;
-bool early_batch_started = false;
-
-void WaitForBufferSwap(uint8_t* base, uint32_t old_buffer_swap_count) {
-	const auto timeout =
-		std::chrono::steady_clock::now() + std::chrono::milliseconds(4);
-	while (REX_LOAD_U32(0x886F4CF0) == old_buffer_swap_count &&
-		   std::chrono::steady_clock::now() < timeout) {
-		std::this_thread::yield();
-	}
-}
-
-}  
+namespace { constexpr bool kArrangeRender = false; }
+#define LAG_PATCH_RENDER
+#include "../../src/lag_patches.h"
+#undef LAG_PATCH_RENDER
 
 DEFINE_REX_FUNC(sub_88030000) {
 	REX_FUNC_PROLOGUE();
@@ -1531,6 +1513,7 @@ loc_88030A58:
 DEFINE_REX_FUNC(sub_88030A60) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
+	ResetEarlyRender();
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x88048464
@@ -1962,26 +1945,16 @@ loc_88030B08:
 DEFINE_REX_FUNC(RunRenderFrame) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
-	const uint32_t return_address = ctx.lr;
-	const bool is_early_render_call =
-		sdoj_patch_flags::render_enabled() &&
-		return_address == kEarlyRenderMarker;
-	const bool is_last_early_render_call =
-		is_early_render_call && ctx.r3.u32 == 1;
-	const uint32_t early_render_calls = ctx.r4.u32;
-	uint32_t old_buffer_swap_count = 0;
-	if (is_early_render_call && ctx.r3.u32 == early_render_calls) {
-		early_batch_started = false;
-	}
-	if (is_early_render_call && late_render_calls_to_skip != 0) {
+	if (patch_flags::render_enabled() && ctx.lr == kStartRenderEarly) {
+		ctx.r3.u64 = StartRenderEarly(ctx, base);
 		return;
 	}
-	if (is_early_render_call && ctx.r3.u32 == early_render_calls) {
-		uint32_t waiting = 1;
-		early_batch_started = render_worker_state.compare_exchange_strong(
-			waiting, 2, std::memory_order_acq_rel);
+	if (patch_flags::render_enabled() && ctx.lr == kWaitForRender) {
+		ctx.r3.u64 = WaitForRenderAndSwapBuffer(ctx, base);
+		return;
 	}
-	if (is_early_render_call && !early_batch_started) {
+	if (patch_flags::render_enabled() && ctx.lr == kEndRenderEarly) {
+		EndEarlyRender();
 		return;
 	}
 	// mflr r12
@@ -2005,11 +1978,7 @@ DEFINE_REX_FUNC(RunRenderFrame) {
 	// cmpwi cr6,r10,0
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, 0, ctx.xer);
 	// bne cr6,0x88030df0
-	if (!ctx.cr6.eq) {
-		// don't let an old skip count affect a later frame.
-		late_render_calls_to_skip = 0;
-		goto loc_88030DF0;
-	}
+	if (!ctx.cr6.eq) goto loc_88030DF0;
 	// lis r11,-30613
 	ctx.r11.s64 = -2006253568;
 	// lwz r10,16916(r11)
@@ -2032,10 +2001,6 @@ DEFINE_REX_FUNC(RunRenderFrame) {
 	// li r31,1
 	ctx.r31.s64 = 1;
 loc_88030DE0:
-	if (is_last_early_render_call && ctx.r31.u32 != 0) {
-		old_buffer_swap_count = REX_LOAD_U32(0x886F4CF0);
-	}
-	if (late_render_calls_to_skip == 0) {
 	// lis r10,-30613
 	ctx.r10.s64 = -2006253568;
 	// lwz r11,16908(r10)
@@ -2043,27 +2008,14 @@ loc_88030DE0:
 	// addi r11,r11,1
 	ctx.r11.s64 = ctx.r11.s64 + 1;
 	// stw r11,16908(r10)
-	REX_STORE_U32(ctx.r10.u32 + 16908, ctx.r11.u32);
-	} else {
-		--late_render_calls_to_skip;
+	if (!patch_flags::render_enabled() ||
+		!RenderCallWasAddedEarly(base)) {
+		REX_STORE_U32(ctx.r10.u32 + 16908, ctx.r11.u32);
 	}
 loc_88030DF0:
-	if (is_early_render_call) {
-		if (is_last_early_render_call) {
-			if (ctx.r31.u32 != 0) {
-				WaitForBufferSwap(base, old_buffer_swap_count);
-				late_render_calls_to_skip = early_render_calls;
-			} else {
-				render_worker_state.store(0, std::memory_order_release);
-			}
-			early_batch_started = false;
-		}
-		goto loc_render_callback_exit;
-	}
 	// bl 0x88033e88
 	ctx.lr = 0x88030DF4;
 	sub_88033E88(ctx, base);
-loc_render_callback_exit:
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;
 	// addi r1,r1,96
@@ -3264,6 +3216,7 @@ loc_88031664:
 DEFINE_REX_FUNC(sub_88031670) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
+	ResetEarlyRender();
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x88048488
@@ -7055,9 +7008,6 @@ DEFINE_REX_FUNC(WaitForRenderFrame) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
 	const uint32_t return_address = ctx.lr;
-	const bool track_render_worker =
-		sdoj_patch_flags::render_enabled() &&
-		(return_address == 0x88051D5C || return_address == 0x880521CC);
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x8804847c
@@ -7077,8 +7027,9 @@ DEFINE_REX_FUNC(WaitForRenderFrame) {
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r28.u32 + -28168);
 	// lwz r29,16908(r31)
 	ctx.r29.u64 = REX_LOAD_U32(ctx.r31.u32 + 16908);
-	if (track_render_worker) {
-		render_worker_state.store(1, std::memory_order_release);
+	if (patch_flags::render_enabled() &&
+		return_address == 0x880521CC) {
+		GameWaitStarted(ctx.r30.u32, ctx.r29.u32);
 	}
 	// lwz r11,0(r3)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r3.u32 + 0);
@@ -7200,6 +7151,10 @@ loc_880332D0:
 	// blt cr6,0x88033290
 	if (ctx.cr6.lt) goto loc_88033290;
 loc_880332E8:
+	if (patch_flags::render_enabled() &&
+		return_address == 0x880521CC) {
+		GameWaitEnded();
+	}
 	// lwz r3,-28152(r26)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r26.u32 + -28152);
 	// lwz r11,0(r3)
@@ -7217,9 +7172,6 @@ loc_880332E8:
 	// addi r1,r1,144
 	ctx.r1.s64 = ctx.r1.s64 + 144;
 	// b 0x880484cc
-	if (track_render_worker) {
-		render_worker_state.store(0, std::memory_order_release);
-	}
 	__restgprlr_25(ctx, base);
 	return;
 }

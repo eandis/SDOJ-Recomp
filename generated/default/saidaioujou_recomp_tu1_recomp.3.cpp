@@ -1,51 +1,32 @@
 #include "saidaioujou_recomp_tu1_init.h"
-#include "../../src/sdoj_patch_flags.h"
+#include "../../src/patch_flags.h"
+#define LAG_PATCH_INPUT
+#include "../../src/lag_patches.h"
+#undef LAG_PATCH_INPUT
 
 #include <rex/memory/utils.h>
 
 namespace {
 
-constexpr uint32_t kRenderCallback = 0x88030D90;
-constexpr uint32_t kEarlyRenderMarker = 0x8217F65E;
-
-uint32_t GetRenderCallsForMode(uint8_t* base, uint32_t callback_address,
-                               uint32_t expected_callback,
-                               uint32_t graphics_address,
-                               uint32_t render_calls_address) {
-  size_t size = 1;
-  rex::memory::PageAccess memory_access =
-      rex::memory::PageAccess::kNoAccess;
-  if (!rex::memory::QueryProtect(base + callback_address, size,
-                                 memory_access) ||
-      memory_access == rex::memory::PageAccess::kNoAccess ||
-      REX_LOAD_U32(callback_address) != expected_callback) {
-    return 0;
-  }
-
-  const uint32_t render_calls = REX_LOAD_U32(render_calls_address);
-  if (render_calls == 0 || render_calls > 4) {
-    return 0;
-  }
-
-  const uint32_t graphics_state = REX_LOAD_U32(graphics_address);
-  if (graphics_state == 0 || REX_LOAD_U32(graphics_state + 472) != 0) {
-    return 0;
-  }
-
-  return render_calls;
-}
-
-uint32_t GetRenderCalls(uint8_t* base) {
-  uint32_t render_calls =
-      GetRenderCallsForMode(base, 0x886B4214, 0x88051390,
-                            0x888791FC, 0x888791A4);
-  return render_calls != 0
-             ? render_calls
-             : GetRenderCallsForMode(base, 0x886BC73C, 0x88051308,
-                                     0x88881724, 0x888816CC);
+bool IsGuestAddressMapped(uint8_t* base, uint32_t address) {
+	size_t size = 1;
+	rex::memory::PageAccess access = rex::memory::PageAccess::kNoAccess;
+	return rex::memory::QueryProtect(base + address, size, access) &&
+		access != rex::memory::PageAccess::kNoAccess;
 }
 
 }  // namespace
+
+bool CanCallGameRenderPatch(uint8_t* base) {
+	using namespace render_patch;
+	const bool arrange =
+		REX_LOAD_U32(kGameplayController + kArrangeModeOffset) == kRequiredArrangeValue;
+	const uint32_t module = REX_LOAD_U32(GameplayModule(arrange));
+	const uint32_t callback = RenderCallback(arrange);
+	return module != 0 && REX_LOAD_U32(module + kModuleRenderReadyOffset) != 0 &&
+		IsGuestAddressMapped(base, callback) &&
+		REX_LOAD_U32(callback) == ExpectedRenderCallback(arrange);
+}
 
 DEFINE_REX_FUNC(sub_821613D8) {
 	REX_FUNC_PROLOGUE();
@@ -70745,7 +70726,7 @@ loc_8217F4C4:
 DEFINE_REX_FUNC(RunFrame) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
-	uint32_t early_render_calls = 0;
+	bool early_render_call_moved = false;
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x8222a998
@@ -70954,20 +70935,14 @@ loc_8217F650:
 	// bl 0x821797a0
 	ctx.lr = 0x8217F658;
 	UpdateInputs(ctx, base);
-	// only gameplay uses the early render call. menus stay untouched.
-	early_render_calls =
-		sdoj_patch_flags::render_enabled() && ctx.r31.u32 != 0
-			? GetRenderCalls(base) : 0;
-	if (early_render_calls != 0) {
-		const PPCContext saved_cpu_state = ctx;
-		for (uint32_t call_index = 0;
-			 call_index < early_render_calls; ++call_index) {
-			ctx.r3.u64 = early_render_calls - call_index;
-			ctx.r4.u64 = early_render_calls;
-			ctx.lr = kEarlyRenderMarker;
-			REX_CALL_INDIRECT_FUNC(kRenderCallback);
-		}
-		ctx = saved_cpu_state;
+	early_render_call_moved = false;
+	if (patch_flags::render_enabled() && ctx.r31.u32 != 0 &&
+		CanCallGameRenderPatch(base)) {
+		const PPCContext saved_ctx = ctx;
+		ctx.lr = render_patch::kStartRenderEarly;
+		REX_CALL_INDIRECT_FUNC(render_patch::kRunRenderFrame);
+		early_render_call_moved = ctx.r3.u32 != 0;
+		ctx = saved_ctx;
 		ctx.fpscr.setcsr(ctx.fpscr.csr);
 	}
 	// mr r3,r31
@@ -70975,6 +70950,14 @@ loc_8217F650:
 	// bl 0x82152cc8
 	ctx.lr = 0x8217F660;
 	sub_82152CC8(ctx, base);
+	if (early_render_call_moved &&
+		CanCallGameRenderPatch(base)) {
+		const PPCContext saved_ctx = ctx;
+		ctx.lr = render_patch::kEndRenderEarly;
+		REX_CALL_INDIRECT_FUNC(render_patch::kRunRenderFrame);
+		ctx = saved_ctx;
+		ctx.fpscr.setcsr(ctx.fpscr.csr);
+	}
 	// cmpwi r3,0
 	ctx.cr0.compare<int32_t>(ctx.r3.s32, 0, ctx.xer);
 	// beq 0x8217f698

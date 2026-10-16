@@ -1,161 +1,21 @@
 #include "saidaioujou_recomp_tu1_init.h"
-#include "../../src/sdoj_patch_flags.h"
+#include "../../src/patch_flags.h"
+#include "../../src/settings.h"
 
 
-#include <array>
-#include <atomic>
+#define LAG_PATCH_INPUT
+#include "../../src/lag_patches.h"
+#undef LAG_PATCH_INPUT
 
-uint32_t late_render_calls_to_skip = 0;
-std::atomic<uint32_t> early_buffer_swap_count{0};
-std::atomic<uint32_t> render_worker_state{0};
-
-namespace {
-
-// the buffer swap runs on a separate thread, so another thread can read the render state at the same time
-// lock the graphics state so other threads can't read it halfway through the swap
-uint32_t GetGraphicsLock(uint8_t* base, uint32_t graphics,
-		uint32_t lock_offset) {
-	return graphics ? REX_LOAD_U32(graphics + lock_offset) : 0;
-}
-
-void UseGraphicsLock(PPCContext& ctx, uint8_t* base,
-		uint32_t graphics_lock, uint32_t vtable_offset) {
-	if (graphics_lock == 0) return;
-
-	const PPCContext saved_ctx = ctx;
-	ctx.r3.u64 = graphics_lock;
-	ctx.ctr.u64 = REX_LOAD_U32(
-		REX_LOAD_U32(graphics_lock) + vtable_offset);
-	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
-	ctx = saved_ctx;
-	ctx.fpscr.setcsr(ctx.fpscr.csr);
-}
-
-struct GameplayPad {
-	int8_t status = -1;
-	uint16_t buttons = 0;
-	uint8_t triggers[2]{};
-	int16_t sticks[4]{};
-};
-
-// input patch. the game normally builds the mask from an older controller update
-// poll again
-
-bool PollGameplayPad(PPCContext& ctx, uint8_t* base, uint32_t port,
-		uint32_t return_address, GameplayPad& pad) {
-	if (pad.status >= 0) return pad.status != 0;
-
-	const uint32_t state = (ctx.r1.u32 - 64) & ~uint32_t{15};
-	ctx.r3.u64 = port;
-	ctx.r4.u64 = state;
-	ctx.lr = return_address;
-	REX_CALL_INDIRECT_FUNC(0x822169E0);
-	pad.status = ctx.r3.u32 == 0;
-	if (!pad.status) return false;
-
-	pad.buttons = REX_LOAD_U16(state + 4);
-	pad.triggers[0] = REX_LOAD_U8(state + 6);
-	pad.triggers[1] = REX_LOAD_U8(state + 7);
-	for (uint32_t i = 0; i < 4; ++i) {
-		pad.sticks[i] = static_cast<int16_t>(REX_LOAD_U16(state + 8 + i * 2));
-	}
-	return true;
-}
-
-int32_t ReadPadControl(uint32_t binding, const GameplayPad& pad) {
-	const uint32_t control = binding & 0xFFu;
-	static constexpr uint16_t buttons[] = {
-		0x0001, 0x0002, 0x0004, 0x0008, 0x0010,
-		0x0020, 0x0040, 0x0080, 0x0100, 0x0200,
-	};
-	if (control <= 10) {
-		return (pad.buttons & buttons[control - 1]) != 0;
-	}
-	if (control <= 12) return pad.triggers[control - 11];
-	if (control <= 16) return pad.sticks[control - 13];
-	return (pad.buttons & (0x1000u << (control - 17))) != 0;
-}
-
-int32_t ReadGameplayAction(PPCContext& ctx, uint8_t* base,
-		uint32_t input_manager, uint32_t player, uint32_t action_id,
-		uint32_t return_address, std::array<GameplayPad, 4>& pads) {
-	constexpr uint32_t player_stride = 1272;
-	constexpr uint32_t binding_stride = 40;
-	constexpr uint32_t action_stride = 36;
-
-	const uint32_t player_data = input_manager + 14956 + player * player_stride;
-	const uint32_t bindings = REX_LOAD_U32(player_data + 100);
-	const uint32_t binding_count = REX_LOAD_U32(player_data + 104);
-	const uint32_t actions = REX_LOAD_U32(player_data + 212);
-
-	for (uint32_t i = 0; i < binding_count; ++i) {
-		const uint32_t binding_data = bindings + i * binding_stride;
-		if (REX_LOAD_U32(binding_data) != action_id) continue;
-		const uint32_t binding = REX_LOAD_U32(binding_data + 4);
-		if ((binding >> 8) == 0x10000 &&
-			PollGameplayPad(ctx, base, player, return_address, pads[player])) {
-			return ReadPadControl(binding, pads[player]);
-		}
-		return static_cast<int32_t>(REX_LOAD_U32(actions + i * action_stride + 8));
-	}
-	return 0;
-}
-
-void RefreshGameplayInput(PPCContext& ctx, uint8_t* base,
-		uint32_t input_manager, uint32_t config_slot,
-		uint32_t gameplay_input, uint32_t return_address) {
-	const uint32_t config = REX_LOAD_U32(config_slot);
-	if (input_manager == 0 || config == 0) return;
-
-	const PPCContext saved_ctx = ctx;
-	std::array<GameplayPad, 4> pads{};
-	for (uint32_t gameplay_player = 0; gameplay_player < 2; ++gameplay_player) {
-		const uint32_t player =
-			REX_LOAD_U32(config + 380 + gameplay_player * 4);
-		if (player >= 4) continue;
-		const uint32_t fixed_actions = 27 + gameplay_player * 13;
-		const uint32_t player_config = config + gameplay_player * 64;
-		const auto action = [&](uint32_t action_player, uint32_t id) {
-			return ReadGameplayAction(ctx, base, input_manager, action_player,
-				id, return_address, pads);
-		};
-		const auto configured = [&](uint32_t offset) {
-			return action(player, REX_LOAD_U32(player_config + offset)) != 0;
-		};
-
-		uint32_t mask = 0;
-		if (action(player, 20) || action(0, fixed_actions) ||
-			action(player, 0) || action(player, 13) >= 9000) mask |= 0x01;
-		if (action(0, fixed_actions + 1) || action(player, 1) ||
-			action(player, 13) <= -9000) mask |= 0x02;
-		if (action(0, fixed_actions + 2) || action(player, 2) ||
-			action(player, 12) <= -9000) mask |= 0x04;
-		if (action(player, 21) || action(0, fixed_actions + 3) ||
-			action(player, 3) || action(player, 12) >= 9000) mask |= 0x08;
-		if (configured(152) || action(0, fixed_actions + 4) || configured(120)) mask |= 0x10;
-		if (configured(156) || action(0, fixed_actions + 5) || configured(124)) mask |= 0x20;
-		if (configured(160) || action(0, fixed_actions + 6) || configured(128)) mask |= 0x40;
-		if (configured(164) || action(0, fixed_actions + 7) ||
-			configured(132) || action(player, 5)) mask |= 0x80;
-
-		const uint32_t pending = gameplay_input + (gameplay_player == 0 ? 12 : 172);
-		REX_STORE_U32(pending, (REX_LOAD_U32(pending) & ~uint32_t{0xFF}) | mask);
-	}
-	ctx = saved_ctx;
-	ctx.fpscr.setcsr(ctx.fpscr.csr);
-}
-
-}
+bool RenderHelperWasDoneEarly(uint8_t* base);
+bool RenderWaitWasUpdatedEarly(uint8_t* base);
+uint64_t GameFrameStarted();
+void RenderBufferReady(uint8_t* base, uint64_t frame_id, uint32_t next_slowdown_depth);
 
 // original: sub_88051390
 DEFINE_REX_FUNC(NormalRenderCallback) {
 	REX_FUNC_PROLOGUE();
 	uint32_t ea{};
-	if (sdoj_patch_flags::render_enabled() &&
-		late_render_calls_to_skip != 0) {
-		// we already ran this early. skip the normal late call.
-		return;
-	}
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// stw r12,-8(r1)
@@ -169,6 +29,9 @@ DEFINE_REX_FUNC(NormalRenderCallback) {
 	// bl 0x880342d8
 	ctx.lr = 0x880513A4;
 	BuildInputMasks(ctx, base);
+	const bool helper_ran_early = patch_flags::render_enabled() &&
+		RenderHelperWasDoneEarly(base);
+	if (!helper_ran_early) {
 	// lis r11,-30584
 	ctx.r11.s64 = -2004353024;
 	// lwz r11,-28240(r11)
@@ -180,7 +43,12 @@ DEFINE_REX_FUNC(NormalRenderCallback) {
 	// bl 0x88036798
 	ctx.lr = 0x880513B8;
 	sub_88036798(ctx, base);
+	}
 loc_880513B8:
+	if (patch_flags::render_enabled() &&
+		RenderWaitWasUpdatedEarly(base)) {
+		goto loc_88051410;
+	}
 	// lis r31,-30584
 	ctx.r31.s64 = -2004353024;
 	// lwz r11,-28252(r31)
@@ -196,31 +64,8 @@ loc_880513B8:
 	// bne cr6,0x880513f0
 	if (!ctx.cr6.eq) goto loc_880513F0;
 	// bl 0x88033070
-	if (sdoj_patch_flags::render_enabled()) {
-		const uint32_t graphics = REX_LOAD_U32(0x888791F8);
-		const uint32_t render_state_lock =
-			GetGraphicsLock(base, graphics, 476);
-		const uint32_t render_service_lock =
-			GetGraphicsLock(base, graphics, 480);
-		UseGraphicsLock(ctx, base, render_state_lock, 4);
-		UseGraphicsLock(ctx, base, render_service_lock, 4);
-
-		const uint32_t early_swap_count = early_buffer_swap_count.exchange(
-			0, std::memory_order_acq_rel);
-		if (early_swap_count != 0 &&
-			early_swap_count == REX_LOAD_U32(0x886F4CF0)) {
-			ctx.r3.s64 = 1;
-		} else {
-			ctx.lr = 0x880513D8;
-			SwapRenderBuffer(ctx, base);
-		}
-
-		UseGraphicsLock(ctx, base, render_service_lock, 8);
-		UseGraphicsLock(ctx, base, render_state_lock, 8);
-	} else {
-		ctx.lr = 0x880513D8;
-		SwapRenderBuffer(ctx, base);
-	}
+	ctx.lr = 0x880513D8;
+	SwapRenderBuffer(ctx, base);
 	// cmpwi r3,0
 	ctx.cr0.compare<int32_t>(ctx.r3.s32, 0, ctx.xer);
 	// beq 0x88051410
@@ -299,6 +144,7 @@ loc_88051454:
 // original: sub_88051460
 DEFINE_REX_FUNC(NormalGameWorker) {
 	REX_FUNC_PROLOGUE();
+	uint64_t early_frame_id = 0;
 	PPCRegister temp{};
 	uint32_t ea{};
 	// mflr r12
@@ -1556,6 +1402,7 @@ loc_88051C88:
 	// lis r23,-30584
 	ctx.r23.s64 = -2004353024;
 loc_88051DA8:
+	early_frame_id = patch_flags::render_enabled() ? GameFrameStarted() : 0;
 	// bl 0x8806ef60
 	ctx.lr = 0x88051DAC;
 	sub_8806EF60(ctx, base);
@@ -1565,13 +1412,13 @@ loc_88051DA8:
 	// bl 0x880358c0
 	ctx.lr = 0x88051DB4;
 	sub_880358C0(ctx, base);
-	if (sdoj_patch_flags::input_enabled()) {
+	if (patch_flags::input_enabled()) {
 		// refresh input right before the game builds the mask
-		const uint32_t input_object = REX_LOAD_U32(0x888791F8);
+		const uint32_t input_object = REX_LOAD_U32(InputObject(false));
 		const uint32_t input_manager =
-			input_object ? REX_LOAD_U32(input_object + 588) : 0;
+			input_object ? REX_LOAD_U32(input_object + kInputManagerOffset) : 0;
 		RefreshGameplayInput(ctx, base, input_manager,
-			0x888791FC, 0x88875310, 0x88051DB4);
+			PlayerConfigSlot(false), GameplayInputBlock(false), 0x88051DB4);
 	}
 	// li r10,2
 	ctx.r10.s64 = 2;
@@ -2142,31 +1989,10 @@ loc_88052198:
 	sub_88123D28(ctx, base);
 	// lwz r3,-28248(r14)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r14.u32 + -28248);
-	const uint32_t render_calls_needed = ctx.r3.u32;
 	// stw r3,-28252(r18)
-	REX_STORE_U32(ctx.r18.u32 + -28252, render_calls_needed);
-	ctx.r3.u64 = render_calls_needed;
-	if (sdoj_patch_flags::render_enabled() &&
-		render_calls_needed >= 1 && render_calls_needed <= 4) {
-		// swap the finished buffer early
-		const uint32_t graphics = REX_LOAD_U32(0x888791F8);
-		const uint32_t render_state_lock =
-			GetGraphicsLock(base, graphics, 476);
-		const uint32_t render_service_lock =
-			GetGraphicsLock(base, graphics, 480);
-		UseGraphicsLock(ctx, base, render_state_lock, 4);
-		UseGraphicsLock(ctx, base, render_service_lock, 4);
-		const uint32_t old_buffer_swap_count = REX_LOAD_U32(0x886F4CF0);
-		ctx.lr = 0x880521B4;
-		SwapRenderBuffer(ctx, base);
-		const uint32_t new_buffer_swap_count = REX_LOAD_U32(0x886F4CF0);
-		if (new_buffer_swap_count != old_buffer_swap_count) {
-			early_buffer_swap_count.store(
-				new_buffer_swap_count, std::memory_order_release);
-		}
-		UseGraphicsLock(ctx, base, render_service_lock, 8);
-		UseGraphicsLock(ctx, base, render_state_lock, 8);
-		ctx.r3.u64 = render_calls_needed;
+	REX_STORE_U32(ctx.r18.u32 + -28252, ctx.r3.u32);
+	if (patch_flags::render_enabled()) {
+		RenderBufferReady(base, early_frame_id, ctx.r3.u32);
 	}
 	// lwz r11,-28252(r18)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r18.u32 + -28252);

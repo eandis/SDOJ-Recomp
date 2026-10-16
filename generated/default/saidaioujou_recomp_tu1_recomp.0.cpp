@@ -1,6 +1,10 @@
 #include "saidaioujou_recomp_tu1_init.h"
 #include "../../src/exitgame.h"
+#include "../../src/patch_flags.h"
+#include "../../src/settings.h"
+#include "../../src/lag_patches.h"
 
+bool CanCallGameRenderPatch(uint8_t* base);
 
 DEFINE_REX_FUNC(sub_82100000) {
 	REX_FUNC_PROLOGUE();
@@ -71759,6 +71763,13 @@ loc_8211F068:
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 13, ctx.xer);
 	// bne cr6,0x8211f134
 	if (!ctx.cr6.eq) goto loc_8211F134;
+	if (patch_flags::render_enabled() && CanCallGameRenderPatch(base)) {
+		const PPCContext saved_ctx = ctx;
+		ctx.lr = render_patch::kWaitForRender;
+		REX_CALL_INDIRECT_FUNC(render_patch::kRunRenderFrame);
+		ctx = saved_ctx;
+		ctx.fpscr.setcsr(ctx.fpscr.csr);
+	}
 	// lis r30,-32134
 	ctx.r30.s64 = -2105933824;
 	// lwz r3,-14092(r30)
