@@ -4,7 +4,7 @@ Dodonpachi Saidaioujou Recompilation using [ReXGlue](https://github.com/rexglue/
 
 # Requirements
 
-- DoDonPachi Saidaioujou Xbox 360 dump
+- DoDonPachi SaiDaiOuJou Xbox 360 dump
 - Title Update 1.01 file
 
 # First launch
