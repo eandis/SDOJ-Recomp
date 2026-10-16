@@ -14,6 +14,7 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <CLI/CLI.hpp>
 
@@ -46,6 +47,16 @@ std::vector<FlagEntry>& GetRegistryStorage() {
 std::unordered_map<std::string, size_t>& GetRegistryIndex() {
   static std::unordered_map<std::string, size_t> index;
   return index;
+}
+
+std::unordered_map<std::string, std::string>& GetStartupValueStorage() {
+  static std::unordered_map<std::string, std::string> values;
+  return values;
+}
+
+std::unordered_set<std::string>& GetEnabledCommandLineBooleanFlags() {
+  static std::unordered_set<std::string> flags;
+  return flags;
 }
 
 // Convert flag name to environment variable: gpu_vsync -> REX_GPU_VSYNC
@@ -203,6 +214,7 @@ std::optional<size_t> RegisterFlag(FlagEntry entry) {
   std::lock_guard lock(GetRegistryMutex());
   (void)GetCallbackStorage();
   (void)GetPendingRestartStorage();
+  (void)GetStartupValueStorage();
   auto& index = GetRegistryIndex();
   auto& storage = GetRegistryStorage();
   auto it = index.find(entry.name);
@@ -227,6 +239,7 @@ void UnregisterFlag(std::string_view name) {
   }
   size_t pos = idx_it->second;
   index.erase(idx_it);
+  GetStartupValueStorage().erase(key);
   storage.erase(storage.begin() + pos);
   for (auto& [n, i] : index) {
     if (i > pos) {
@@ -300,6 +313,30 @@ std::string GetFlagByName(std::string_view name) {
   }
 
   return GetRegistryStorage()[it->second].getter();
+}
+
+void CaptureStartupValues() {
+  std::lock_guard lock(GetRegistryMutex());
+  auto& values = GetStartupValueStorage();
+  for (const auto& entry : GetRegistryStorage()) {
+    if (!values.contains(entry.name)) {
+      values.emplace(entry.name, entry.getter());
+    }
+  }
+}
+
+std::string GetStartupFlagByName(std::string_view name) {
+  std::lock_guard lock(GetRegistryMutex());
+  const std::string key(name);
+  auto it = GetRegistryIndex().find(key);
+  if (it == GetRegistryIndex().end()) {
+    return "";
+  }
+
+  const auto& entry = GetRegistryStorage()[it->second];
+  const auto& snapshots = GetStartupValueStorage();
+  auto snapshot = snapshots.find(key);
+  return snapshot != snapshots.end() ? snapshot->second : entry.getter();
 }
 
 std::vector<std::string> ListFlags() {
@@ -493,12 +530,22 @@ void UnregisterChangeCallbacks(std::string_view name) {
 std::vector<std::string> Init(int argc, char** argv) {
   CLI::App app{"", ""};
   app.allow_extras();
+  GetEnabledCommandLineBooleanFlags().clear();
 
   for (auto& entry : GetRegistryStorage()) {
     if (entry.type == FlagType::Boolean) {
       app.add_flag_function(
           "--" + entry.name + ",!--no-" + entry.name,
-          [&entry](int64_t count) { entry.setter(count > 0 ? "true" : "false"); },
+          [&entry](int64_t count) {
+            const bool enabled = count > 0;
+            auto& flags = GetEnabledCommandLineBooleanFlags();
+            if (enabled) {
+              flags.insert(entry.name);
+            } else {
+              flags.erase(entry.name);
+            }
+            entry.setter(enabled ? "true" : "false");
+          },
           entry.description);
     } else {
       app.add_option_function<std::string>(
@@ -516,6 +563,10 @@ std::vector<std::string> Init(int argc, char** argv) {
   }
 
   return app.remaining();
+}
+
+bool WasBooleanFlagEnabledOnCommandLine(std::string_view name) {
+  return GetEnabledCommandLineBooleanFlags().contains(std::string(name));
 }
 
 void LoadConfig(const std::filesystem::path& config_path) {
@@ -565,10 +616,6 @@ bool IsFinalized() {
 
 void SaveConfig(const std::filesystem::path& config_path) {
   std::string content = SerializeToTOML();
-  if (content.empty()) {
-    REXLOG_DEBUG("SaveConfig: no modified flags to save");
-    return;
-  }
 
   try {
     std::ofstream file(config_path);
@@ -597,6 +644,10 @@ ScopedLifecycleOverride::~ScopedLifecycleOverride() {
 void ResetAllForTesting() {
   ResetAllToDefaults();
   ClearPendingRestartFlags();
+  {
+    std::lock_guard lock(GetRegistryMutex());
+    GetStartupValueStorage().clear();
+  }
   g_finalized = false;
 }
 

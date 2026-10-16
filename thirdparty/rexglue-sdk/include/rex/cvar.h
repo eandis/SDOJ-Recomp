@@ -104,11 +104,15 @@ namespace rex::cvar {
 //=============================================================================
 
 std::vector<std::string> Init(int argc, char** argv);
+bool WasBooleanFlagEnabledOnCommandLine(std::string_view name);
 void LoadConfig(const std::filesystem::path& config_path);
 void ApplyEnvironment();
 void FinalizeInit();
 bool IsFinalized();
 void SaveConfig(const std::filesystem::path& config_path);
+
+void CaptureStartupValues();
+std::string GetStartupFlagByName(std::string_view name);
 
 //=============================================================================
 // Flag Registry
