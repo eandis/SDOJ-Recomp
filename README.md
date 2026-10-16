@@ -46,6 +46,13 @@ You can start from any boss phase, or the final attacks of Hibachi/Inbachi. Thei
 
 VSync, fullscreen and the input/render patches are in the game's General screen settings, and keyboard controls can be remapped in the Keyboard screen. Press F4 in game for the rest of the ReXGlue settings. Everything is saved in `saidaioujou_recomp_tu1.toml`.
 
+### Debug
+
+Launching the game with `--debug` unlocks the game's original hidden debug menu. It only applies to that launch. Some of its features are:
+- Payment (adds coins)
+- Cheat open (unlocks everything)
+- Muteki (invincibility)
+
 ### Updates
 
 The game checks GitHub for new releases on launch and lets you know if there's one. You can turn it off with `check_for_updates` in F4 under SDOJ.
