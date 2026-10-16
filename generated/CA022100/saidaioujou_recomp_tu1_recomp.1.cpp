@@ -13858,6 +13858,18 @@ DEFINE_REX_FUNC(sub_88057370) {
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 0, ctx.xer);
 	// bne cr6,0x8805757c
 	if (!ctx.cr6.eq) goto loc_8805757C;
+	if (training_start::AdvanceBossPhase(base, ctx.r31.u32, training_start::stage5_index,
+		training_start::stage5_phase_offset)) {
+		const uint32_t phase = REX_LOAD_U32(ctx.r31.u32 + training_start::stage5_phase_offset);
+		if (REX_LOAD_U32(ctx.r31.u32 + 6260 + phase * 28 + 16) == 0) {
+			REX_STORE_U32(ctx.r31.u32 + 6548, 1);
+			ctx.r6.u64 = ctx.r31.u64 + 5952;
+			ctx.r7.s64 = 1;
+			training_start::BreakBossPhase(ctx, base, sub_880571A8, ctx.r31.u32, 6116);
+			goto loc_8805757C;
+		}
+		goto loc_88057400;
+	}
 	// lis r11,-30613
 	ctx.r11.s64 = -2006253568;
 	// lwz r11,-13808(r11)
@@ -15635,6 +15647,7 @@ loc_88058034:
 	REX_STORE_U32(ctx.r5.u32 + 1360, ctx.r30.u32);
 	// stw r30,1352(r5)
 	REX_STORE_U32(ctx.r5.u32 + 1352, ctx.r30.u32);
+	training_start::SetBossPhaseRequest(base, ctx.r29.u32, training_start::stage5_index);
 	// addi r1,r1,224
 	ctx.r1.s64 = ctx.r1.s64 + 224;
 	// b 0x880484a8
@@ -20670,6 +20683,21 @@ DEFINE_REX_FUNC(sub_8805A320) {
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, 0, ctx.xer);
 	// bne cr6,0x8805a49c
 	if (!ctx.cr6.eq) goto loc_8805A49C;
+	static uint32_t inbachi_final_wait = 0;
+	if (training_start::ca_final_request != training_start::FinalBossRequest::Inbachi) {
+		inbachi_final_wait = 0;
+	} else if (REX_LOAD_U32(training_start::mode_address) == training_start::training_mode &&
+		REX_LOAD_U32(ctx.r31.u32 + training_start::boss_phase_offset) == 0 &&
+		++inbachi_final_wait >= training_start::phase_break_delay_frames) {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+		inbachi_final_wait = 0;
+		training_start::BreakBossPhase(ctx, base, sub_8805A1A0, ctx.r31.u32, 5188);
+		goto loc_8805A49C;
+	}
+	if (REX_LOAD_U32(training_start::mode_address) != training_start::training_mode &&
+		training_start::ca_final_request != training_start::FinalBossRequest::None) {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+	}
 	// lwz r10,8(r11)
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r11.u32 + 8);
 	// addic. r10,r10,-1
@@ -21621,6 +21649,13 @@ loc_8805A930:
 	REX_STORE_U32(ctx.r31.u32 + ctx.r9.u32, ctx.r10.u32);
 	// stw r10,236(r7)
 	REX_STORE_U32(ctx.r7.u32 + 236, ctx.r10.u32);
+	if (REX_LOAD_U32(training_start::mode_address) == training_start::training_mode &&
+		training_start::CurrentFinalRequestFromTitleSettings(base) ==
+		training_start::FinalBossRequest::Inbachi) {
+		training_start::ca_final_request = training_start::FinalBossRequest::Inbachi;
+	} else if (REX_LOAD_U32(training_start::mode_address) != training_start::training_mode) {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+	}
 	// addi r1,r1,112
 	ctx.r1.s64 = ctx.r1.s64 + 112;
 	// b 0x880484dc
@@ -23057,6 +23092,21 @@ DEFINE_REX_FUNC(sub_8805B3B0) {
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, 0, ctx.xer);
 	// bne cr6,0x8805b538
 	if (!ctx.cr6.eq) goto loc_8805B538;
+	static uint32_t hibachi_final_wait = 0;
+	if (training_start::ca_final_request != training_start::FinalBossRequest::Hibachi) {
+		hibachi_final_wait = 0;
+	} else if (REX_LOAD_U32(training_start::mode_address) == training_start::training_mode &&
+		REX_LOAD_U32(ctx.r31.u32 + training_start::boss_phase_offset) == 0 &&
+		++hibachi_final_wait >= training_start::phase_break_delay_frames) {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+		hibachi_final_wait = 0;
+		training_start::BreakBossPhase(ctx, base, sub_8805B248, ctx.r31.u32, 5188);
+		goto loc_8805B538;
+	}
+	if (REX_LOAD_U32(training_start::mode_address) != training_start::training_mode &&
+		training_start::ca_final_request != training_start::FinalBossRequest::None) {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+	}
 	// lis r8,-30613
 	ctx.r8.s64 = -2006253568;
 	// lis r10,-30613
@@ -23985,6 +24035,13 @@ loc_8805B9B4:
 	REX_STORE_U32(ctx.r31.u32 + 9348, ctx.r10.u32);
 	// stw r10,236(r9)
 	REX_STORE_U32(ctx.r9.u32 + 236, ctx.r10.u32);
+	if (REX_LOAD_U32(training_start::mode_address) == training_start::training_mode &&
+		training_start::CurrentFinalRequestFromTitleSettings(base) ==
+		training_start::FinalBossRequest::Hibachi) {
+		training_start::ca_final_request = training_start::FinalBossRequest::Hibachi;
+	} else if (REX_LOAD_U32(training_start::mode_address) != training_start::training_mode) {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+	}
 	// addi r1,r1,112
 	ctx.r1.s64 = ctx.r1.s64 + 112;
 	// b 0x880484dc
@@ -34212,6 +34269,15 @@ DEFINE_REX_FUNC(sub_88060078) {
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, 0, ctx.xer);
 	// bne cr6,0x88060230
 	if (!ctx.cr6.eq) goto loc_88060230;
+	if (training_start::AdvanceBossPhase(base, ctx.r31.u32, training_start::stage4_index,
+		training_start::stage4_phase_offset)) {
+		const uint32_t phase = REX_LOAD_U32(ctx.r31.u32 + training_start::stage4_phase_offset);
+		if (REX_LOAD_U32(ctx.r31.u32 + 3660 + phase * 28 + 16) == 0) {
+			training_start::BreakBossPhase(ctx, base, sub_8805FEE0, ctx.r31.u32, 3516);
+			goto loc_88060230;
+		}
+		goto loc_880600E8;
+	}
 	// lwz r10,8(r11)
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r11.u32 + 8);
 	// addic. r10,r10,-1
@@ -35564,6 +35630,7 @@ loc_880609CC:
 	REX_STORE_U32(ctx.r31.u32 + 5096, ctx.r29.u32);
 	// stw r29,5100(r31)
 	REX_STORE_U32(ctx.r31.u32 + 5100, ctx.r29.u32);
+	training_start::SetBossPhaseRequest(base, ctx.r31.u32, training_start::stage4_index);
 	// addi r1,r1,128
 	ctx.r1.s64 = ctx.r1.s64 + 128;
 	// b 0x880484d4
@@ -57743,6 +57810,18 @@ DEFINE_REX_FUNC(sub_8806A160) {
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 0, ctx.xer);
 	// bne cr6,0x8806a2f4
 	if (!ctx.cr6.eq) goto loc_8806A2F4;
+	if (training_start::AdvanceBossPhase(base, ctx.r31.u32, training_start::stage3_index,
+		training_start::stage3_phase_offset)) {
+		const uint32_t phase = REX_LOAD_U32(ctx.r31.u32 + training_start::stage3_phase_offset);
+		if (REX_LOAD_U32(ctx.r31.u32 + 8128 + phase * 28 + 16) == 0) {
+			REX_STORE_U32(ctx.r31.u32 + 8416, 1);
+			ctx.r6.u64 = ctx.r31.u64 + 7248;
+			ctx.r7.s64 = 1;
+			training_start::BreakBossPhase(ctx, base, sub_8806A018, ctx.r31.u32, 7984);
+			goto loc_8806A2F4;
+		}
+		goto loc_8806A1D0;
+	}
 	// lwz r11,8(r30)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r30.u32 + 8);
 	// addic. r11,r11,-1
@@ -59017,6 +59096,7 @@ loc_8806AA28:
 	REX_STORE_U32(ctx.r31.u32 + 8488, ctx.r29.u32);
 	// stw r11,0(r15)
 	REX_STORE_U32(ctx.r15.u32 + 0, ctx.r11.u32);
+	training_start::SetBossPhaseRequest(base, ctx.r31.u32, training_start::stage3_index);
 	// addi r1,r1,224
 	ctx.r1.s64 = ctx.r1.s64 + 224;
 	// b 0x880484a4

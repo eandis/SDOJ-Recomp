@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/settings.h"
 
 DEFINE_REX_FUNC(sub_880F2A30) {
 	REX_FUNC_PROLOGUE();
@@ -5401,6 +5402,13 @@ DEFINE_REX_FUNC(sub_880F5008) {
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r3.u32 + 8668);
 	// mr r29,r3
 	ctx.r29.u64 = ctx.r3.u64;
+	if (training_start::IsTrainingHiddenBossStart(base)) {
+		ctx.r3.u64 = ctx.r29.u64;
+		sub_880900B0(ctx, base);
+		ctx.r1.s64 = ctx.r1.s64 + 160;
+		__restgprlr_24(ctx, base);
+		return;
+	}
 	// addi r11,r11,22480
 	ctx.r11.s64 = ctx.r11.s64 + 22480;
 	// cmplw cr6,r10,r11
@@ -7829,6 +7837,13 @@ DEFINE_REX_FUNC(sub_880F6170) {
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r3.u32 + 8668);
 	// mr r29,r3
 	ctx.r29.u64 = ctx.r3.u64;
+	if (training_start::IsTrainingHiddenBossStart(base)) {
+		ctx.r3.u64 = ctx.r29.u64;
+		sub_880900B0(ctx, base);
+		ctx.r1.s64 = ctx.r1.s64 + 160;
+		__restgprlr_24(ctx, base);
+		return;
+	}
 	// addi r11,r11,26936
 	ctx.r11.s64 = ctx.r11.s64 + 26936;
 	// cmplw cr6,r10,r11

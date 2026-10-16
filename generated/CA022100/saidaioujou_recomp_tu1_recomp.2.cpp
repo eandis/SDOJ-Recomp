@@ -1,5 +1,125 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/settings.h"
 
+namespace {
+
+struct PendingBossPhase {
+	uint32_t object = 0;
+	uint32_t stage = 0;
+	uint32_t phase = 0;
+	uint32_t wait = 0;
+	uint32_t breaks = 0;
+};
+
+PendingBossPhase pending_boss_phase{};
+
+bool ReadSavedTrainingArea(uint8_t* base, uint32_t expected_stage, uint32_t& area) {
+	const uint32_t family = REX_LOAD_U32(
+		training_start::frontend_controller_address + training_start::menu_mode_offset);
+	if (!training_start::AllowsFinalStarts(family)) return false;
+
+	const uint32_t family_offset =
+		(family - training_start::arcade_hd_menu_mode) * training_start::training_bank_bytes;
+	if (expected_stage > training_start::stage5_index) return false;
+	const uint32_t profile_index = REX_LOAD_U32(training_start::training_index + family_offset);
+	if (profile_index >= training_start::training_record_count) {
+		return false;
+	}
+
+	const uint32_t records = training_start::training_records + family_offset;
+	const uint32_t record = records + profile_index * training_start::record_bytes;
+	const uint32_t record_stage =
+		REX_LOAD_U16(record + training_start::record_stage_offset);
+	if (record_stage != expected_stage) return false;
+
+	area = REX_LOAD_U16(record + training_start::record_areas_offset +
+		record_stage * sizeof(uint16_t));
+	if (record_stage == training_start::stage5_index &&
+		area > training_start::Stage5LastValue(family)) {
+		area = training_start::boss_checkpoint;
+	}
+	return true;
+}
+
+}
+
+namespace training_start {
+FinalBossRequest ca_final_request = FinalBossRequest::None;
+}
+
+training_start::FinalBossRequest training_start::CurrentFinalRequestFromTitleSettings(uint8_t* base) {
+	uint32_t area = 0;
+	if (!ReadSavedTrainingArea(base, stage5_index, area)) {
+		return training_start::FinalBossRequest::None;
+	}
+	if (area == training_start::hibachi_final_value) {
+		return training_start::FinalBossRequest::Hibachi;
+	}
+	if (area == training_start::inbachi_final_value) {
+		return training_start::FinalBossRequest::Inbachi;
+	}
+	return training_start::FinalBossRequest::None;
+}
+
+bool training_start::IsTrainingHiddenBossStart(uint8_t* base) {
+	if (REX_LOAD_U32(mode_address) != training_mode ||
+		REX_LOAD_U32(stage_controller_address + controller_stage_offset) != stage5_index) {
+		return false;
+	}
+
+	const uint32_t checkpoint =
+		REX_LOAD_U32(stage_controller_address + controller_checkpoint_offset);
+	return checkpoint == training_start::hibachi_checkpoint ||
+		checkpoint == training_start::inbachi_checkpoint;
+}
+
+void training_start::SetBossPhaseRequest(uint8_t* base, uint32_t object, uint32_t stage) {
+	pending_boss_phase = {};
+	if (object == 0 || REX_LOAD_U32(mode_address) != training_mode) return;
+
+	uint32_t area = 0;
+	if (!ReadSavedTrainingArea(base, stage, area)) return;
+
+	const uint32_t phase = Phase(stage, area);
+	if (phase == 0) return;
+	pending_boss_phase = {object, stage, phase};
+}
+
+bool training_start::AdvanceBossPhase(uint8_t* base, uint32_t object, uint32_t stage,
+	uint32_t phase_offset) {
+	if (pending_boss_phase.object != object || pending_boss_phase.phase == 0) return false;
+	if (pending_boss_phase.stage != stage || REX_LOAD_U32(mode_address) != training_mode ||
+		REX_LOAD_U32(stage_controller_address + controller_stage_offset) != stage) {
+		pending_boss_phase = {};
+		return false;
+	}
+
+	const uint32_t current_index = REX_LOAD_U32(object + phase_offset);
+	const uint32_t phase_count = REX_LOAD_U32(object + phase_offset - sizeof(uint32_t));
+	if (pending_boss_phase.phase >= phase_count || current_index >= pending_boss_phase.phase) {
+		pending_boss_phase = {};
+		return false;
+	}
+
+	const uint32_t delay =
+		stage == training_start::stage4_index && pending_boss_phase.breaks != 0
+		? training_start::s4_second_break_delay_frames
+		: training_start::phase_break_delay_frames;
+	if (++pending_boss_phase.wait < delay) return false;
+	pending_boss_phase.wait = 0;
+	++pending_boss_phase.breaks;
+	return true;
+}
+
+void training_start::BreakBossPhase(PPCContext& ctx, uint8_t* base,
+	void (*transition)(PPCContext&, uint8_t*), uint32_t boss, uint32_t damage_record) {
+	const uint32_t hit = boss + damage_record + 4;
+	REX_STORE_U32(hit + 8, player1_object);
+	ctx.r3.s64 = 1;
+	ctx.r4.u64 = boss;
+	ctx.r5.u64 = hit;
+	transition(ctx, base);
+}
 
 DEFINE_REX_FUNC(sub_880729E8) {
 	REX_FUNC_PROLOGUE();
@@ -6475,6 +6595,15 @@ DEFINE_REX_FUNC(sub_88075698) {
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, 0, ctx.xer);
 	// bne cr6,0x88075804
 	if (!ctx.cr6.eq) goto loc_88075804;
+	if (training_start::AdvanceBossPhase(base, ctx.r31.u32, training_start::stage2_index,
+		training_start::stage2_phase_offset)) {
+		const uint32_t phase = REX_LOAD_U32(ctx.r31.u32 + training_start::stage2_phase_offset);
+		if (REX_LOAD_U32(ctx.r31.u32 + 5516 + phase * 28 + 16) == 0) {
+			training_start::BreakBossPhase(ctx, base, sub_88075550, ctx.r31.u32, 5372);
+			goto loc_88075804;
+		}
+		goto loc_88075708;
+	}
 	// lwz r10,8(r11)
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r11.u32 + 8);
 	// addic. r10,r10,-1
@@ -7051,6 +7180,7 @@ loc_88075A78:
 	// bl 0x88099ed0
 	ctx.lr = 0x88075AE4;
 	sub_88099ED0(ctx, base);
+	training_start::SetBossPhaseRequest(base, ctx.r31.u32, training_start::stage2_index);
 	// lis r11,-30697
 	ctx.r11.s64 = -2011758592;
 	// mr r3,r30
@@ -27846,6 +27976,30 @@ DEFINE_REX_FUNC(sub_8807E558) {
 	ctx.r1.u32 = ea;
 	// mr r31,r3
 	ctx.r31.u64 = ctx.r3.u64;
+	const bool training_stage5 =
+		REX_LOAD_U32(training_start::mode_address) == training_start::training_mode &&
+		REX_LOAD_U32(ctx.r31.u32 + training_start::controller_stage_offset) ==
+			training_start::stage5_index;
+	if (training_stage5 && ctx.r4.u32 == training_start::hibachi_final_value) {
+		training_start::ca_final_request = training_start::FinalBossRequest::Hibachi;
+		ctx.r4.u64 = training_start::Checkpoint(ctx.r4.u32);
+	} else if (training_stage5 && ctx.r4.u32 == training_start::inbachi_final_value) {
+		training_start::ca_final_request = training_start::FinalBossRequest::Inbachi;
+		ctx.r4.u64 = training_start::Checkpoint(ctx.r4.u32);
+	} else if (training_stage5) {
+		const auto title_request = training_start::CurrentFinalRequestFromTitleSettings(base);
+		if (title_request == training_start::FinalBossRequest::Hibachi &&
+			ctx.r4.u32 == training_start::hibachi_checkpoint) {
+			training_start::ca_final_request = title_request;
+		} else if (title_request == training_start::FinalBossRequest::Inbachi &&
+			ctx.r4.u32 == training_start::inbachi_checkpoint) {
+			training_start::ca_final_request = title_request;
+		} else if (title_request == training_start::FinalBossRequest::None) {
+			training_start::ca_final_request = training_start::FinalBossRequest::None;
+		}
+	} else {
+		training_start::ca_final_request = training_start::FinalBossRequest::None;
+	}
 	// mr r30,r4
 	ctx.r30.u64 = ctx.r4.u64;
 	// cmplwi cr6,r4,5

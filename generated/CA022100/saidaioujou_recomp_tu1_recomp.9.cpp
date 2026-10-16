@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/settings.h"
 
 DEFINE_REX_FUNC(sub_88154C80) {
 	REX_FUNC_PROLOGUE();
@@ -9111,8 +9112,9 @@ loc_88158C78:
 	ctx.r11.s64 = 3;
 	// stw r28,8(r31)
 	REX_STORE_U32(ctx.r31.u32 + 8, ctx.r28.u32);
-	// li r10,780
-	ctx.r10.s64 = REX_LOAD_U32(0x826335F4) == 13 ? 60 : 780; // 13 is training mode.
+	ctx.r10.s64 = REX_LOAD_U32(training_start::mode_address) == training_start::training_mode
+		? training_start::training_intro_wait_frames
+		: 780;
 	// stw r22,32(r31)
 	REX_STORE_U32(ctx.r31.u32 + 32, ctx.r22.u32);
 	// stw r11,0(r31)
@@ -9211,7 +9213,9 @@ loc_88158D0C:
 	// li r27,2
 	ctx.r27.s64 = 2;
 	// li r5,660
-	ctx.r5.s64 = 660;
+	ctx.r5.s64 = training_start::IsTrainingHiddenBossStart(base)
+		? 0
+		: training_start::warning_wait_frames;
 	// stw r22,32(r31)
 	REX_STORE_U32(ctx.r31.u32 + 32, ctx.r22.u32);
 	// li r28,0
@@ -17136,8 +17140,9 @@ loc_8815C4D0:
 	ctx.r11.s64 = 3;
 	// stw r28,8(r31)
 	REX_STORE_U32(ctx.r31.u32 + 8, ctx.r28.u32);
-	// li r10,1020
-	ctx.r10.s64 = REX_LOAD_U32(0x826335F4) == 13 ? 60 : 1020; // 13 is training mode.
+	ctx.r10.s64 = REX_LOAD_U32(training_start::mode_address) == training_start::training_mode
+		? training_start::training_intro_wait_frames
+		: 1020;
 	// stw r22,32(r31)
 	REX_STORE_U32(ctx.r31.u32 + 32, ctx.r22.u32);
 	// stw r11,0(r31)
@@ -17206,7 +17211,9 @@ loc_8815C558:
 	// li r27,2
 	ctx.r27.s64 = 2;
 	// li r11,660
-	ctx.r11.s64 = 660;
+	ctx.r11.s64 = training_start::IsTrainingHiddenBossStart(base)
+		? 0
+		: training_start::warning_wait_frames;
 	// stw r22,32(r31)
 	REX_STORE_U32(ctx.r31.u32 + 32, ctx.r22.u32);
 	// li r28,0
