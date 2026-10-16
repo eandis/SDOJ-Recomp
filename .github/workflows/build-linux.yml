@@ -50,6 +50,8 @@ jobs:
           mkdir -p package/sdoj-recomp-linux-amd64
           cp -L "$out/DoDonPachi SaiDaiOuJou" $out/*.so package/sdoj-recomp-linux-amd64/
           cp -r $out/tools package/sdoj-recomp-linux-amd64/
+          curl -sSfL -o package/sdoj-recomp-linux-amd64/gamecontrollerdb.txt \
+            https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt
           tar -C package -czf sdoj-recomp-linux-amd64.tar.gz sdoj-recomp-linux-amd64
 
       - name: Upload

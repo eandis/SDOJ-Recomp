@@ -86,7 +86,8 @@ if(REXGLUE_ENABLE_PERF_COUNTERS)
 endif()
 
 if(WIN32)
-    target_link_libraries(rexruntime PRIVATE ws2_32)
+    # the presenter uses dxgi on windows with either backend
+    target_link_libraries(rexruntime PRIVATE ws2_32 dxgi)
 endif()
 
 if(REXGLUE_USE_D3D12)
