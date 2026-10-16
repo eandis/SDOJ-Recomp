@@ -581,6 +581,8 @@ int32_t ReadMenuAction(MenuAction action) {
     case MenuAction::Back:
       return key_down(VirtualKey::kX) || key_down(VirtualKey::kBack) ||
              key_down(VirtualKey::kEscape);
+    case MenuAction::Y:
+      return key_down(VirtualKey::kC);
   }
   return 0;
 }

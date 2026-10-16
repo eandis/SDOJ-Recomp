@@ -46708,7 +46708,7 @@ loc_88044D68:
 	// cmpwi cr6,r5,0
 	ctx.cr6.compare<int32_t>(ctx.r5.s32, 0, ctx.xer);
 	// blt cr6,0x88044de8
-	if (ctx.cr6.lt) goto loc_88044DE8;
+	if (ctx.cr6.lt) goto loc_88044DAC;
 	// lwz r3,588(r22)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r22.u32 + 588);
 	// mr r4,r28
@@ -46809,7 +46809,7 @@ loc_88044E28:
 	// cmpwi cr6,r5,0
 	ctx.cr6.compare<int32_t>(ctx.r5.s32, 0, ctx.xer);
 	// blt cr6,0x88044ea4
-	if (ctx.cr6.lt) goto loc_88044EA4;
+	if (ctx.cr6.lt) goto loc_88044E68;
 	// lwz r3,588(r22)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r22.u32 + 588);
 	// mr r4,r28
@@ -46910,7 +46910,7 @@ loc_88044EE4:
 	// cmpwi cr6,r5,0
 	ctx.cr6.compare<int32_t>(ctx.r5.s32, 0, ctx.xer);
 	// blt cr6,0x88044f60
-	if (ctx.cr6.lt) goto loc_88044F60;
+	if (ctx.cr6.lt) goto loc_88044F24;
 	// lwz r3,588(r22)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r22.u32 + 588);
 	// mr r4,r28
@@ -47013,7 +47013,7 @@ loc_88044FA4:
 	// cmpwi cr6,r5,0
 	ctx.cr6.compare<int32_t>(ctx.r5.s32, 0, ctx.xer);
 	// blt cr6,0x88045020
-	if (ctx.cr6.lt) goto loc_88045020;
+	if (ctx.cr6.lt) goto loc_88044FE4;
 	// lwz r3,588(r22)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r22.u32 + 588);
 	// mr r4,r28

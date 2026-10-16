@@ -6,6 +6,24 @@
 
 bool CanCallGameRenderPatch(uint8_t* base);
 
+namespace {
+
+bool KeyboardYPressed(uint8_t* base) {
+	static uint32_t frame = 0xFFFFFFFF;
+	static bool held = false;
+	static bool pressed = false;
+	const uint32_t now = REX_LOAD_U32(0x82633748);
+	if (now != frame) {
+		frame = now;
+		const bool down = keyboard_input::ReadMenuAction(keyboard_input::MenuAction::Y) != 0;
+		pressed = down && !held;
+		held = down;
+	}
+	return pressed;
+}
+
+}
+
 DEFINE_REX_FUNC(sub_82100000) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
@@ -60712,13 +60730,13 @@ loc_8211A438:
 	ctx.r3.u64 = ctx.r30.u64;
 	// li r5,-1
 	ctx.r5.s64 = -1;
-	// li r4,4
-	ctx.r4.s64 = 4;
-	// bl 0x8211fa18
-	ctx.lr = 0x8211A448;
-	sub_8211FA18(ctx, base);
-	// cmpwi r3,0
-	ctx.cr0.compare<int32_t>(ctx.r3.s32, 0, ctx.xer);
+		// li r4,4
+		ctx.r4.s64 = 4;
+		// bl 0x8211fa18
+		ctx.lr = 0x8211A448;
+		sub_8211FA18(ctx, base);
+		// cmpwi r3,0
+		ctx.cr0.compare<int32_t>(ctx.r3.s32, 0, ctx.xer);
 	// beq 0x8211c788
 	if (ctx.cr0.eq) goto loc_8211C788;
 	// li r11,7
@@ -61548,6 +61566,13 @@ loc_8211A988:
 	REX_STORE_U16(ctx.r1.u32 + 114, ctx.r4.u16);
 	// lhzx r10,r10,r3
 	ctx.r10.u64 = REX_LOAD_U16(ctx.r10.u32 + ctx.r3.u32);
+	if (REX_LOAD_U32(training_start::mode_address) ==
+	    training_start::training_mode) {
+		const uint32_t selected_mode =
+			REX_LOAD_U32(ctx.r31.u32 + training_start::menu_mode_offset);
+		ctx.r10.u64 = training_start::Checkpoint(
+			ctx.r10.u32, selected_mode, ctx.r9.u32);
+	}
 	// sth r29,116(r1)
 	REX_STORE_U16(ctx.r1.u32 + 116, ctx.r29.u16);
 	// lwz r31,36(r3)
@@ -67570,7 +67595,7 @@ loc_8211D3DC:
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 30, ctx.xer);
 	// bne cr6,0x8211dca0
 	if (!ctx.cr6.eq) goto loc_8211DCA0;
-	sdoj_pc_exit::quit();
+	pc_exit::quit();
 loc_8211D3E8:
 	// lis r11,-32134
 	ctx.r11.s64 = -2105933824;
@@ -73247,6 +73272,10 @@ loc_8211FA78:
 	// mr r31,r30
 	ctx.r31.u64 = ctx.r30.u64;
 loc_8211FA7C:
+	if (ctx.r28.u32 == 13 && KeyboardYPressed(base)) {
+		ctx.r3.s64 = 1;
+		goto loc_8211FAB4;
+	}
 	// lis r11,-32134
 	ctx.r11.s64 = -2105933824;
 	// li r5,0
@@ -73266,8 +73295,11 @@ loc_8211FA7C:
 	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 	// cmpwi r3,0
 	ctx.cr0.compare<int32_t>(ctx.r3.s32, 0, ctx.xer);
-	// beq 0x8211fa70
-	if (ctx.cr0.eq) goto loc_8211FA70;
+	if (ctx.cr0.eq && !(ctx.r28.u32 == 4 &&
+		ctx.r31.u32 < keyboard_input::player_count &&
+		keyboard_input::ReadAction(ctx.r31.u32, keyboard_input::Action::Start) != 0)) {
+		goto loc_8211FA70;
+	}
 	// li r5,1
 	ctx.r5.s64 = 1;
 	// mr r4,r31

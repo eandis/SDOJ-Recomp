@@ -1,5 +1,22 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
+#include "../../src/settings.h"
+
+static bool DrawEnglishPcHelp(PPCContext& ctx, uint8_t* base) {
+	const uint32_t first = pc_settings::storage + pc_settings::description_offset;
+	if (!pc_settings::storage || ctx.r7.u32 < first ||
+	    ctx.r7.u32 >= pc_settings::storage + pc_settings::storage_bytes) return false;
+	PPCContext text = ctx;
+	text.r3.u32 = ctx.r7.u32;
+	text.r7.u32 = ctx.r8.u32;
+	text.r8.u32 = 0;
+	text.f1.f64 = ctx.r4.s32;
+	text.f2.f64 = ctx.r5.s32;
+	text.f3.f64 = ctx.f1.f64;
+	sub_8211E780(text, base);
+	return true;
+}
+
 DEFINE_REX_FUNC(sub_82140850) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
@@ -8812,7 +8829,34 @@ loc_821443A8:
 loc_821443BC:
 	// lwz r11,4(r31)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r31.u32 + 4);
-loc_821443C0:
+	loc_821443C0:
+		{
+			if (ctx.r11.u32 == keyboard_menu::system_row_id && keyboard_menu::string_storage) {
+				REX_STORE_U32(ctx.r1.u32 + 88, ctx.r30.u32);
+				ctx.r3.u32 = keyboard_menu::LabelAddress(keyboard_menu::system_row_id);
+				ctx.r8.s64 = 0;
+				ctx.f3.f64 = ctx.f31.f64;
+				ctx.r7.s64 = ctx.r1.s64 + 88;
+				ctx.f2.f64 = ctx.f30.f64;
+				ctx.f1.f64 = ctx.f29.f64;
+				ctx.lr = 0x821443E8;
+				sub_8211E780(ctx, base);
+				goto loc_821447A8;
+			}
+				const int pc_index = pc_settings::SettingIndex(ctx.r11.u32);
+				if (pc_index >= 0 && pc_settings::storage) {
+				REX_STORE_U32(ctx.r1.u32 + 88, ctx.r30.u32);
+				ctx.r3.u64 = pc_settings::LabelAddress(size_t(pc_index));
+			ctx.r8.s64 = 0;
+			ctx.f3.f64 = ctx.f31.f64;
+			ctx.r7.s64 = ctx.r1.s64 + 88;
+			ctx.f2.f64 = ctx.f30.f64;
+			ctx.f1.f64 = ctx.f29.f64;
+			ctx.lr = 0x821443E8;
+			sub_8211E780(ctx, base);
+			goto loc_821447A8;
+		}
+	}
 	// cmpwi cr6,r11,121
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 121, ctx.xer);
 	// bne cr6,0x821443e8
@@ -10388,9 +10432,14 @@ loc_82144E5C:
 	ctx.r29.s64 = 256;
 	// stw r11,100(r1)
 	REX_STORE_U32(ctx.r1.u32 + 100, ctx.r11.u32);
-	// li r30,232
-	ctx.r30.s64 = 232;
-loc_82144E8C:
+		// li r30,232
+		ctx.r30.s64 = 232;
+	loc_82144E8C:
+			if (keyboard_menu::active) {
+				REX_STORE_U32(ctx.r1.u32 + 100, 1);
+				ctx.r29.u32 = keyboard_menu::keyboard_popup_width;
+				ctx.r30.u32 = keyboard_menu::keyboard_popup_x;
+			}
 	// lwz r10,0(r22)
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r22.u32 + 0);
 	// lis r11,-32134
@@ -10455,8 +10504,11 @@ loc_82144E8C:
 	ctx.r8.s64 = ctx.r1.s64 + 96;
 	// addi r7,r1,80
 	ctx.r7.s64 = ctx.r1.s64 + 80;
-	// li r6,192
-	ctx.r6.s64 = 192;
+		// li r6,192
+		ctx.r6.s64 = 192;
+		if (keyboard_menu::active) {
+			ctx.r6.u32 = keyboard_menu::keyboard_popup_height;
+		}
 	// mr r5,r29
 	ctx.r5.u64 = ctx.r29.u64;
 	// li r4,264
@@ -10922,10 +10974,36 @@ loc_821451F0:
 	// b 0x82145178
 	goto loc_82145178;
 loc_82145244:
-	// lwz r11,4(r30)
-	ctx.r11.u64 = REX_LOAD_U32(ctx.r30.u32 + 4);
+		// lwz r11,4(r30)
+		ctx.r11.u64 = REX_LOAD_U32(ctx.r30.u32 + 4);
 loc_82145248:
-	// cmpwi cr6,r11,58
+		if (keyboard_menu::active && keyboard_menu::IsKeyboardRow(ctx.r11.u32)) {
+			const uint32_t row_id = ctx.r11.u32;
+			const uint32_t label = keyboard_menu::LabelAddress(row_id);
+			if (label) {
+				REX_STORE_U32(ctx.r1.u32 + 80, ctx.r28.u32);
+				ctx.r3.u32 = label;
+				ctx.r8.s64 = 0;
+				ctx.r7.u32 = ctx.r1.u32 + 80;
+				ctx.f3.f64 = ctx.f30.f64;
+				ctx.f2.f64 = ctx.f28.f64;
+				ctx.f1.f64 = ctx.f31.f64;
+				sub_8211E780(ctx, base);
+			}
+			const uint32_t value = keyboard_menu::ValueAddress(row_id);
+			if (value) {
+				REX_STORE_U32(ctx.r1.u32 + 80, ctx.r28.u32);
+				ctx.r3.u32 = value;
+				ctx.r8.s64 = 0;
+				ctx.r7.u32 = ctx.r1.u32 + 80;
+				ctx.f3.f64 = ctx.f30.f64;
+				ctx.f2.f64 = ctx.f28.f64;
+				ctx.f1.f64 = double(float(ctx.f31.f64 + keyboard_menu::value_text_spacing));
+				sub_8211E780(ctx, base);
+			}
+			goto loc_821453E8;
+		}
+		// cmpwi cr6,r11,58
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 58, ctx.xer);
 	// bne cr6,0x82145298
 	if (!ctx.cr6.eq) goto loc_82145298;
@@ -11753,8 +11831,7 @@ loc_82145748:
 	if (ctx.cr6.eq) goto loc_8214645C;
 	// lwz r11,27336(r24)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r24.u32 + 27336);
-	// li r25,240
-	ctx.r25.s64 = 240;
+	ctx.r25.u32 = pc_settings::panel_height;
 	// cmpwi cr6,r11,0
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 0, ctx.xer);
 	// bne cr6,0x821457d4
@@ -12560,53 +12637,59 @@ loc_82145D60:
 	// lwz r11,4(r25)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r25.u32 + 4);
 loc_82145D64:
-	// cmpwi cr6,r11,90
-	ctx.cr6.compare<int32_t>(ctx.r11.s32, 90, ctx.xer);
-	// bne cr6,0x82145db8
-	if (!ctx.cr6.eq) goto loc_82145DB8;
-	// stw r26,88(r1)
-	REX_STORE_U32(ctx.r1.u32 + 88, ctx.r26.u32);
-	// li r8,0
-	ctx.r8.s64 = 0;
-	// addi r7,r1,88
-	ctx.r7.s64 = ctx.r1.s64 + 88;
-	// lwz r3,220(r1)
-	ctx.r3.u64 = REX_LOAD_U32(ctx.r1.u32 + 220);
-	// fmr f3,f30
-	ctx.fpscr.disableFlushMode();
-	ctx.f3.f64 = ctx.f30.f64;
-	// fmr f2,f31
-	ctx.f2.f64 = ctx.f31.f64;
-	// fmr f1,f28
-	ctx.f1.f64 = ctx.f28.f64;
-	// bl 0x8211e780
-	ctx.lr = 0x82145D8C;
-	sub_8211E780(ctx, base);
-	// cmpwi cr6,r23,0
-	ctx.cr6.compare<int32_t>(ctx.r23.s32, 0, ctx.xer);
-	// stw r26,88(r1)
-	REX_STORE_U32(ctx.r1.u32 + 88, ctx.r26.u32);
-	// li r8,0
-	ctx.r8.s64 = 0;
-	// fmr f3,f30
-	ctx.fpscr.disableFlushMode();
-	ctx.f3.f64 = ctx.f30.f64;
-	// addi r7,r1,88
-	ctx.r7.s64 = ctx.r1.s64 + 88;
-	// fmr f2,f31
-	ctx.f2.f64 = ctx.f31.f64;
-	// mr r3,r20
-	ctx.r3.u64 = ctx.r20.u64;
-	// fmr f1,f29
-	ctx.f1.f64 = ctx.f29.f64;
-	// bne cr6,0x82145db4
-	if (!ctx.cr6.eq) goto loc_82145DB4;
-	// mr r3,r22
-	ctx.r3.u64 = ctx.r22.u64;
+	{
+		const uint32_t row_id =
+			REX_LOAD_U32(ctx.r25.u32 + native_menu::id_offset);
+		const int pc_settings_index = pc_settings::SettingIndex(row_id);
+		ctx.cr6.compare<int32_t>(ctx.r11.s32, 90, ctx.xer);
+		if (!ctx.cr6.eq && pc_settings_index < 0) goto loc_82145DB8;
+		// stw r26,88(r1)
+		REX_STORE_U32(ctx.r1.u32 + 88, ctx.r26.u32);
+		// li r8,0
+		ctx.r8.s64 = 0;
+		// addi r7,r1,88
+		ctx.r7.s64 = ctx.r1.s64 + 88;
+		// lwz r3,220(r1)
+		ctx.r3.u64 = REX_LOAD_U32(ctx.r1.u32 + 220);
+		if (pc_settings_index >= 0) {
+			ctx.r3.u32 = pc_settings::LabelAddress(size_t(pc_settings_index));
+		}
+		// fmr f3,f30
+		ctx.fpscr.disableFlushMode();
+		ctx.f3.f64 = ctx.f30.f64;
+		// fmr f2,f31
+		ctx.f2.f64 = ctx.f31.f64;
+		// fmr f1,f28
+		ctx.f1.f64 = ctx.f28.f64;
+		// bl 0x8211e780
+		ctx.lr = 0x82145D8C;
+		sub_8211E780(ctx, base);
+		// cmpwi cr6,r23,0
+		ctx.cr6.compare<int32_t>(ctx.r23.s32, 0, ctx.xer);
+		// stw r26,88(r1)
+		REX_STORE_U32(ctx.r1.u32 + 88, ctx.r26.u32);
+		// li r8,0
+		ctx.r8.s64 = 0;
+		// fmr f3,f30
+		ctx.fpscr.disableFlushMode();
+		ctx.f3.f64 = ctx.f30.f64;
+		// addi r7,r1,88
+		ctx.r7.s64 = ctx.r1.s64 + 88;
+		// fmr f2,f31
+		ctx.f2.f64 = ctx.f31.f64;
+		// mr r3,r20
+		ctx.r3.u64 = ctx.r20.u64;
+		// fmr f1,f29
+		ctx.f1.f64 = ctx.f29.f64;
+		// bne cr6,0x82145db4
+		if (!ctx.cr6.eq) goto loc_82145DB4;
+		// mr r3,r22
+		ctx.r3.u64 = ctx.r22.u64;
 loc_82145DB4:
-	// bl 0x8211e780
-	ctx.lr = 0x82145DB8;
-	sub_8211E780(ctx, base);
+		// bl 0x8211e780
+		ctx.lr = 0x82145DB8;
+		sub_8211E780(ctx, base);
+	}
 loc_82145DB8:
 	// lwz r11,28(r25)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r25.u32 + 28);
@@ -28417,7 +28500,7 @@ loc_8214CA94:
 	ctx.ctr.u64 = ctx.r11.u64;
 	// bctrl 
 	ctx.lr = 0x8214CD50;
-	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
+	if (!DrawEnglishPcHelp(ctx, base)) REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 	// lwz r11,28444(r29)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r29.u32 + 28444);
 	// cmplw cr6,r11,r20
@@ -28473,7 +28556,7 @@ loc_8214CA94:
 	ctx.r4.u64 = REX_LOAD_U32(ctx.r1.u32 + 116);
 	// bctrl 
 	ctx.lr = 0x8214CDBC;
-	REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
+	if (!DrawEnglishPcHelp(ctx, base)) REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
 loc_8214CDBC:
 	// lwz r11,0(r31)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r31.u32 + 0);
@@ -32769,8 +32852,22 @@ loc_8214EB34:
 	ctx.f13.f64 = double(float(ctx.f13.f64));
 	// addi r7,r1,80
 	ctx.r7.s64 = ctx.r1.s64 + 80;
-	// lwzx r3,r9,r11
-	ctx.r3.u64 = REX_LOAD_U32(ctx.r9.u32 + ctx.r11.u32);
+	{
+		const uint32_t selected_menu =
+			REX_LOAD_U32(ctx.r1.u32 + training_start::draw_menu_stack_offset);
+		const uint32_t selected_mode =
+			REX_LOAD_U32(selected_menu + training_start::menu_mode_offset);
+		const uint32_t selected_stage = REX_LOAD_U32(
+			ctx.r1.u32 + training_start::draw_stage_stack_offset);
+		ctx.r3.u64 = training_start::LabelAddress(
+			ctx.r26.u32, selected_mode, selected_stage);
+		if (ctx.r3.u32 == 0) {
+			const uint32_t checkpoint = training_start::Checkpoint(
+				ctx.r26.u32, selected_mode, selected_stage);
+			ctx.r3.u64 = REX_LOAD_U32(
+				ctx.r11.u32 + checkpoint * sizeof(uint32_t));
+		}
+	}
 	// fmr f3,f30
 	ctx.f3.f64 = ctx.f30.f64;
 	// fmr f2,f31

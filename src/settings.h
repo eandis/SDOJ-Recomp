@@ -40,6 +40,7 @@ enum class MenuAction : uint32_t {
   Right,
   Confirm,
   Back,
+  Y,
 };
 
 constexpr uint32_t binding_count = static_cast<uint32_t>(Action::Count);

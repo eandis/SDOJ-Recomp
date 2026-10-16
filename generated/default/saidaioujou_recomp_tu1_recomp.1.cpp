@@ -1,5 +1,15 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
+#include <bit>
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <string_view>
+#include <rex/cvar.h>
+#include <rex/runtime.h>
+
+#include "../../src/settings.h"
 
 DEFINE_REX_FUNC(sub_82120238) {
 	REX_FUNC_PROLOGUE();
@@ -7568,8 +7578,8 @@ loc_821237F4:
 	// b 0x821237d0
 	goto loc_821237D0;
 loc_8212380C:
-	// li r3,0
-	ctx.r3.s64 = 0;
+		// li r3,0
+		ctx.r3.s64 = 0;
 	// blr 
 	return;
 }
@@ -17093,8 +17103,12 @@ DEFINE_REX_FUNC(sub_82127788) {
 	// li r4,9
 	ctx.r4.s64 = 9;
 	// bl 0x8212fd68
-	ctx.lr = 0x821277F4;
-	sub_8212FD68(ctx, base);
+		ctx.lr = 0x821277F4;
+		const auto pc_table = pc_settings::BuildTable(base, ctx.r5.u32, ctx.r6.u32);
+		ctx.r5.u32 = pc_table.rows;
+		ctx.r6.u32 = pc_table.count;
+		sub_8212FD68(ctx, base);
+		pc_settings::SyncValues(base);
 	// stw r28,24(r29)
 	REX_STORE_U32(ctx.r29.u32 + 24, ctx.r28.u32);
 	// mr r3,r29
@@ -18155,6 +18169,7 @@ loc_82127E94:
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r31.u32 + 24);
 	// bl 0x8212fe48
 	ctx.lr = 0x82127EB4;
+		pc_settings::SyncValues(base);
 	UpdateMenuSelection(ctx, base);
 	// lwz r11,24(r31)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r31.u32 + 24);
@@ -18170,6 +18185,28 @@ loc_82127E94:
 	ctx.r10.s64 = static_cast<int64_t>(ctx.r10.u64 * static_cast<uint64_t>(92));
 	// add r30,r10,r11
 	ctx.r30.u64 = ctx.r10.u64 + ctx.r11.u64;
+	{
+		const int pc_index = pc_settings::SettingIndex(
+			REX_LOAD_U32(ctx.r30.u32 + native_menu::id_offset));
+		if (pc_index >= 0 &&
+		    (ctx.r29.u32 == pc_settings::result_value_change ||
+		     ctx.r29.u32 == pc_settings::result_confirm)) {
+			const bool old_value = pc_settings::Enabled(size_t(pc_index));
+			const bool new_value =
+				ctx.r29.u32 == pc_settings::result_confirm
+					? !old_value
+					: std::bit_cast<float>(REX_LOAD_U32(
+						  ctx.r30.u32 + native_menu::value_offset)) != 0.0f;
+			if (new_value != old_value &&
+			    rex::cvar::SetFlagByName(pc_settings::settings[size_t(pc_index)].flag,
+			                            new_value ? "true" : "false") &&
+			    pc_settings::save_config) {
+				pc_settings::save_config();
+			}
+			pc_settings::SyncValues(base);
+			goto loc_8212859C;
+		}
+	}
 	// beq cr6,0x8212859c
 	if (ctx.cr6.eq) goto loc_8212859C;
 	// cmpwi cr6,r3,0
@@ -20181,6 +20218,19 @@ loc_82128C7C:
 	ctx.r3.s64 = ctx.r29.s64 + 32;
 	// li r4,1
 	ctx.r4.s64 = 1;
+		if (keyboard_menu::active && keyboard_menu::popup_storage) {
+			const auto keyboard_table =
+				keyboard_menu::BuildPopupTable(base, ctx.r5.u32, ctx.r28.u32);
+			ctx.r3.u32 = ctx.r29.u32 + 32;
+			ctx.r4.s64 = 1;
+			ctx.r5.u32 = keyboard_table.rows;
+			ctx.r6.u32 = keyboard_table.count;
+			ctx.r7.s64 = 0;
+			sub_8212FD68(ctx, base);
+			REX_STORE_U32(ctx.r30.u32 + 24, ctx.r29.u32 + 32);
+			REX_STORE_U32(ctx.r30.u32 + 28, 0);
+			goto loc_82128DF4;
+		}
 	// bl 0x8212fd68
 	ctx.lr = 0x82128C98;
 	sub_8212FD68(ctx, base);
@@ -20941,10 +20991,15 @@ DEFINE_REX_FUNC(sub_82129140) {
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r11.u32 + 27256);
 	// cmpwi cr6,r11,0
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 0, ctx.xer);
-	// bne cr6,0x821298b8
-	if (!ctx.cr6.eq) goto loc_821298B8;
-	// li r3,0
-	ctx.r3.s64 = 0;
+		// bne cr6,0x821298b8
+		if (!ctx.cr6.eq) goto loc_821298B8;
+		// li r3,0
+		if (keyboard_menu::active) {
+			keyboard_input::CancelCapture();
+			keyboard_menu::active = false;
+			keyboard_menu::ready_for_input = false;
+		}
+		ctx.r3.s64 = 0;
 	// b 0x821298bc
 	goto loc_821298BC;
 loc_8212919C:
@@ -20997,9 +21052,11 @@ loc_821291D4:
 loc_821291F4:
 	// mr r3,r27
 	ctx.r3.u64 = ctx.r27.u64;
-	// bl 0x82128ff0
-	ctx.lr = 0x821291FC;
-	sub_82128FF0(ctx, base);
+		// bl 0x82128ff0
+		ctx.lr = 0x821291FC;
+		if (!keyboard_menu::active) {
+			sub_82128FF0(ctx, base);
+		}
 	// li r11,5
 	ctx.r11.s64 = 5;
 	// stw r11,4(r27)
@@ -21050,9 +21107,59 @@ loc_82129230:
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r18.u32 + 27256);
 	// cmpwi cr6,r11,0
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 0, ctx.xer);
-	// bne cr6,0x821298b8
-	if (!ctx.cr6.eq) goto loc_821298B8;
-	// lwz r11,28(r18)
+		// bne cr6,0x821298b8
+		if (!ctx.cr6.eq) goto loc_821298B8;
+		if (keyboard_menu::active) {
+			if (!keyboard_input::Capturing()) {
+				const uint32_t menu =
+					REX_LOAD_U32(ctx.r27.u32 + keyboard_menu::menu_pointer_offset);
+				if (menu) {
+					ctx.r4.s64 = -1;
+					ctx.r3.u32 = menu;
+					UpdateMenuSelection(ctx, base);
+					const uint32_t result = ctx.r3.u32;
+					const uint32_t index =
+						REX_LOAD_U32(menu + keyboard_menu::selection_index_offset);
+					const uint32_t rows = REX_LOAD_U32(menu + keyboard_menu::rows_pointer_offset);
+					const uint32_t row = rows + index * keyboard_menu::row_size;
+					const uint32_t id = REX_LOAD_U32(row + native_menu::id_offset);
+					if (!keyboard_menu::ready_for_input) {
+						if (result == keyboard_menu::result_idle ||
+						    result == keyboard_menu::result_no_change) {
+							keyboard_menu::ready_for_input = true;
+						}
+					} else if (result == keyboard_menu::result_back ||
+					           result == keyboard_menu::result_cancel) {
+						keyboard_input::CancelCapture();
+						REX_STORE_U32(ctx.r27.u32 + keyboard_menu::selection_index_offset,
+						              keyboard_menu::closing_state);
+					} else if ((result == keyboard_menu::result_confirm ||
+					            result == keyboard_menu::result_confirm_alternate ||
+					            result == keyboard_menu::result_player_toggle) &&
+					           id == keyboard_menu::player_row_id) {
+						keyboard_menu::popup_player ^= 1;
+					} else if ((result == keyboard_menu::result_confirm ||
+					            result == keyboard_menu::result_confirm_alternate) &&
+					           keyboard_menu::IsBindingRow(id)) {
+						keyboard_menu::capture_action = keyboard_menu::ActionIndex(id);
+						keyboard_input::BeginCapture(
+							keyboard_menu::popup_player,
+							static_cast<keyboard_input::Action>(keyboard_menu::capture_action));
+					} else if (result == keyboard_menu::result_confirm &&
+					           id == keyboard_menu::default_row_id) {
+						keyboard_input::Reset(keyboard_menu::popup_player);
+					} else if (result == keyboard_menu::result_confirm &&
+					           id == keyboard_menu::exit_row_id) {
+						keyboard_input::CancelCapture();
+						REX_STORE_U32(ctx.r27.u32 + keyboard_menu::selection_index_offset,
+						              keyboard_menu::closing_state);
+					}
+				}
+			}
+			keyboard_menu::UpdateText(base);
+			goto loc_821298B8;
+		}
+		// lwz r11,28(r18)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r18.u32 + 28);
 	// li r16,2
 	ctx.r16.s64 = 2;
@@ -22090,7 +22197,17 @@ loc_82129938:
 	ctx.r4.s64 = 9;
 	// mr r3,r30
 	ctx.r3.u64 = ctx.r30.u64;
-	// bl 0x8212fd68
+		if (rex::cvar::WasBooleanFlagEnabledOnCommandLine("debug") && ctx.r6.u32 >= 2) {
+		constexpr uint32_t kDormantDebugMenuId = 0xA1;
+			REX_STORE_U32(ctx.r5.u32 + (ctx.r6.u32 - 2) * native_menu::row_size +
+			                  native_menu::id_offset,
+			              kDormantDebugMenuId);
+		}
+		const auto keyboard_system_table =
+			keyboard_menu::BuildSystemTable(base, ctx.r5.u32, ctx.r6.u32);
+		ctx.r5.u32 = keyboard_system_table.rows;
+		ctx.r6.u32 = keyboard_system_table.count;
+		// bl 0x8212fd68
 	ctx.lr = 0x82129950;
 	sub_8212FD68(ctx, base);
 	// stw r30,28(r31)
@@ -22476,6 +22593,17 @@ loc_82129B48:
 	ctx.r10.u64 = ctx.r10.u64 + ctx.r11.u64;
 	// lwz r11,4(r10)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r10.u32 + 4);
+		if ((ctx.r3.s32 == keyboard_menu::result_confirm ||
+		     ctx.r3.s32 == keyboard_menu::result_confirm_alternate) &&
+		    ctx.r11.u32 == keyboard_menu::system_row_id) {
+			keyboard_menu::active = true;
+			keyboard_menu::popup_player = 0;
+			keyboard_menu::capture_action = UINT32_MAX;
+			keyboard_menu::ready_for_input = false;
+		ctx.r11.u32 = keyboard_menu::closing_state;
+		REX_STORE_U32(ctx.r31.u32 + 4, ctx.r11.u32);
+		goto loc_8212A308;
+	}
 	// cmpwi cr6,r11,25
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 25, ctx.xer);
 	// bne cr6,0x82129b94
@@ -38555,10 +38683,24 @@ loc_82130990:
 loc_82130994:
 	// lis r10,-32157
 	ctx.r10.s64 = -2107441152;
-	// cmpwi cr6,r11,2
-	ctx.cr6.compare<int32_t>(ctx.r11.s32, 2, ctx.xer);
 	// addi r10,r10,-13208
 	ctx.r10.s64 = ctx.r10.s64 + -13208;
+	{
+		const int pc_index = pc_settings::SettingIndex(ctx.r11.u32);
+		if (pc_index >= 0 && pc_settings::storage) {
+			const uint32_t text = pc_settings::DescriptionAddress(size_t(pc_index));
+			if (REX_LOAD_U32(ctx.r10.u32 +
+			                 pc_settings::help_text_pointer_offset) != text) {
+				REX_STORE_U32(ctx.r10.u32 +
+				                  pc_settings::help_text_pointer_offset, text);
+				REX_STORE_U32(ctx.r10.u32 + pc_settings::help_state_offset,
+				              pc_settings::help_refresh_state);
+			}
+			goto loc_8213302C;
+		}
+	}
+	// cmpwi cr6,r11,2
+	ctx.cr6.compare<int32_t>(ctx.r11.s32, 2, ctx.xer);
 	// lwz r11,28436(r10)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r10.u32 + 28436);
 	// bne cr6,0x821309c8
@@ -52491,6 +52633,19 @@ loc_8213691C:
 	temp.f32 = float(ctx.f0.f64);
 	REX_STORE_U32(ctx.r3.u32 + 16, temp.u32);
 loc_82136920:
+	{
+		const uint32_t stage = REX_LOAD_U16(
+			ctx.r29.u32 + training_start::record_stage_offset);
+		const uint32_t selected_mode = REX_LOAD_U32(
+			ctx.r30.u32 + training_start::menu_mode_offset);
+		temp.u32 = REX_LOAD_U32(
+			ctx.r3.u32 + training_start::area_maximum_offset);
+		const uint32_t stock_maximum = static_cast<uint32_t>(temp.f32);
+		temp.f32 = static_cast<float>(training_start::Maximum(
+			stage, selected_mode, stock_maximum));
+		REX_STORE_U32(ctx.r3.u32 + training_start::area_maximum_offset,
+			temp.u32);
+	}
 	// lis r11,-32157
 	ctx.r11.s64 = -2107441152;
 	// lis r10,8
@@ -54705,6 +54860,13 @@ loc_821377EC:
 	temp.u32 = REX_LOAD_U32(ctx.r25.u32 + 96);
 	ctx.f0.f64 = double(temp.f32);
 loc_821377F0:
+	{
+		const uint32_t selected_mode = REX_LOAD_U32(
+			ctx.r27.u32 + training_start::menu_mode_offset);
+		const uint32_t stock_maximum = static_cast<uint32_t>(ctx.f0.f64);
+		ctx.f0.f64 = double(float(training_start::Maximum(
+			ctx.r11.u32, selected_mode, stock_maximum)));
+	}
 	// addi r11,r11,7
 	ctx.r11.s64 = ctx.r11.s64 + 7;
 	// stfs f0,16(r3)

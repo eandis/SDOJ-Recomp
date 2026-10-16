@@ -12070,4 +12070,3 @@ DECLARE_REX_FUNC(__imp__KeSetCurrentProcessType);
 DECLARE_REX_FUNC(__imp__NtCreateSemaphore);
 DECLARE_REX_FUNC(__imp__NtReleaseSemaphore);
 DECLARE_REX_FUNC(__imp__NtWaitForMultipleObjectsEx);
-

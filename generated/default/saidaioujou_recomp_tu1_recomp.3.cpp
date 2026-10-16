@@ -56632,11 +56632,14 @@ loc_82179890:
 	// bne cr6,0x82179858
 	if (!ctx.cr6.eq) goto loc_82179858;
 loc_8217989C:
+	RefreshNativeKeyboardActions(ctx, base, ctx.r30.u32, ctx.r31.u32,
+		0x8217989C);
 	// addi r3,r30,196
 	ctx.r3.s64 = ctx.r30.s64 + 196;
 	// bl 0x82199008
 	ctx.lr = 0x821798A4;
 	sub_82199008(ctx, base);
+	RestoreSavedInputValues(base);
 	// addi r31,r31,1
 	ctx.r31.s64 = ctx.r31.s64 + 1;
 	// addi r30,r30,1272
@@ -64938,6 +64941,27 @@ DEFINE_REX_FUNC(sub_8217CDC8) {
 // original: sub_8217CDD0
 DEFINE_REX_FUNC(GetInputHeld) {
 	REX_FUNC_PROLOGUE();
+	if (ctx.r4.u32 == kPrivateKeyboardMenuDispatchFlag &&
+		IsNativeKeyboardBinding(ctx.r6.u32)) {
+		keyboard_input::MenuAction menu_action = keyboard_input::MenuAction::Up;
+		ctx.r3.u32 = NativeKeyboardMenuAction(ctx.r5.u32, menu_action) &&
+			keyboard_input::ReadMenuAction(menu_action) != 0 ? 1u : 0u;
+		return;
+	}
+	if (ctx.r4.u32 == kPrivateKeyboardDispatchFlag &&
+		IsNativeKeyboardBinding(ctx.r6.u32)) {
+		const uint16_t virtual_key = NativeKeyboardVirtualKey(ctx.r6.u32);
+		uint32_t host_player = 0;
+		keyboard_input::Action host_action = keyboard_input::Action::Count;
+		if (MapKeyboardAction(ctx.r3.u32, ctx.r5.u32,
+				host_player, host_action)) {
+			ctx.r3.u32 = keyboard_input::ReadAction(host_player, host_action) != 0 ? 1u : 0u;
+		} else {
+			ctx.r3.u32 = virtual_key != 0 && keyboard_input::ReadKey(virtual_key)
+				? 1u : 0u;
+		}
+		return;
+	}
 	// cmpwi cr6,r4,0
 	ctx.cr6.compare<int32_t>(ctx.r4.s32, 0, ctx.xer);
 	// blt cr6,0x8217ce4c
