@@ -109,6 +109,10 @@ bool Done(uint8_t* base, const training_start::ExtraStart& start) {
 
 }
 
+bool training_start::ExtraStartLoading(uint8_t* base) {
+	return LoadingExtra(base) != nullptr;
+}
+
 uint32_t training_start::ExtraStartFrame(uint8_t* base, uint32_t flag) {
 	const ExtraStart* start = LoadingExtra(base);
 	if (!start) {

@@ -307,6 +307,7 @@ void Initialize(rex::memory::Memory& memory);
 uint32_t LabelAddress(uint32_t value, uint32_t mode = default_menu_mode,
                       uint32_t stage = stage5_index);
 void SetBossPhaseRequest(uint8_t* base, uint32_t object, uint32_t stage);
+bool ExtraStartLoading(uint8_t* base);
 uint32_t ExtraStartFrame(uint8_t* base, uint32_t flag);
 int ExtraStartStop(uint8_t* base);
 bool AdvanceBossPhase(uint8_t* base, uint32_t object, uint32_t stage,

@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/settings.h"
 
 DEFINE_REX_FUNC(sub_88176A70) {
 	REX_FUNC_PROLOGUE();
@@ -27510,6 +27511,9 @@ loc_88182A9C:
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r31.u32 + 4);
 	// lwz r11,-13808(r21)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r21.u32 + -13808);
+	if (training_start::ExtraStartLoading(base)) {
+		ctx.r11.u64 = training_start::mid_stage_checkpoint;
+	}
 	// cmpwi cr6,r3,32
 	ctx.cr6.compare<int32_t>(ctx.r3.s32, 32, ctx.xer);
 	// bgt cr6,0x88182b2c
