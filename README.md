@@ -93,5 +93,5 @@ cmake --build --preset linux-amd64-release --parallel
 
 ### Release versions
 
-`SDOJ_RELEASE_VERSION` (currently `v1.51`) should match the GitHub release tag. Pass `-DSDOJ_RELEASE_VERSION=` for dev builds to skip the update check.
+`SDOJ_RELEASE_VERSION` (currently `v1.51.1`) should match the GitHub release tag. Pass `-DSDOJ_RELEASE_VERSION=` for dev builds to skip the update check.
 
