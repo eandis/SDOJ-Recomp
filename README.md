@@ -1,10 +1,10 @@
 # SDOJ-Recomp
 
-Dodonpachi Saidaioujou Recompilation using [rexglue](https://github.com/rexglue/rexglue-sdk).
+Dodonpachi Saidaioujou Recompilation using [ReXGlue](https://github.com/rexglue/rexglue-sdk).
 
 # Requirements
 
-- DoDonPachi Saidaioujou Xbox 360 dump
+- DoDonPachi SaiDaiOuJou Xbox 360 dump
 - Title Update 1.01 file
 
 # First launch
@@ -45,6 +45,13 @@ You can start from any boss phase, or the final attacks of Hibachi/Inbachi. Thei
 ### Settings
 
 VSync, fullscreen and the input/render patches are in the game's General screen settings, and keyboard controls can be remapped in the Keyboard screen. Press F4 in game for the rest of the ReXGlue settings. Everything is saved in `saidaioujou_recomp_tu1.toml`.
+
+### Debug
+
+Launching the game with `--debug` unlocks the game's original hidden debug menu. It only applies to that launch. Some of its features are:
+- Payment (adds coins)
+- Cheat open (unlocks everything)
+- Muteki (invincibility)
 
 ### Updates
 
