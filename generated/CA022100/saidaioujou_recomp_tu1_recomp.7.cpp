@@ -37968,7 +37968,7 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 			// jetbachi garbage
 			if (s.section == 5) {
 				if (s.bossScript == 0x8812A448) {
-					score = std::fma(s.renderWork, 0.0001f, score); // extra slowdown for jetbachi opener.
+					score = std::fma(s.renderWork, 0.0000805f, score); // extra slowdown for jetbachi opener.
 				} else if (s.bossScript == 0x881294A0) {
 					score = -std::fma(s.renderWork, 0.00006f, -score); // 3rd attack
 				} else if (s.bossScript == 0x8812AE80 || s.bossScript == 0x88129208) { 

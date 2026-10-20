@@ -32830,6 +32830,13 @@ loc_8214EB28:
 	// li r10,-10
 	ctx.r10.s64 = -10;
 loc_8214EB34:
+	{
+		const uint32_t offset_menu =
+			REX_LOAD_U32(ctx.r1.u32 + training_start::draw_menu_stack_offset);
+		ctx.r10.s64 = training_start::LabelOffset(ctx.r26.u32,
+			REX_LOAD_U32(offset_menu + training_start::menu_mode_offset),
+			REX_LOAD_U32(ctx.r1.u32 + training_start::draw_stage_stack_offset), ctx.r10.s32);
+	}
 	// extsw r10,r10
 	ctx.r10.s64 = ctx.r10.s32;
 	// stw r28,80(r1)

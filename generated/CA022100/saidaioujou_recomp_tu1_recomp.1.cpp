@@ -1513,6 +1513,7 @@ loc_88051E28:
 	ctx.r8.u64 = REX_LOAD_U32(ctx.r24.u32 + 116);
 	// lwz r7,-13808(r22)
 	ctx.r7.u64 = REX_LOAD_U32(ctx.r22.u32 + -13808);
+	ctx.r7.u64 = training_start::ExtraStartFrame(base, ctx.r7.u32);
 	// cmpwi cr6,r10,0
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, 0, ctx.xer);
 	// stw r11,-28248(r14)
@@ -1662,6 +1663,9 @@ loc_88051F58:
 	if (ctx.cr6.eq) goto loc_88051F80;
 	// cmpw cr6,r7,r8
 	ctx.cr6.compare<int32_t>(ctx.r7.s32, ctx.r8.s32, ctx.xer);
+	if (const int stop = training_start::ExtraStartStop(base); stop >= 0) {
+		ctx.cr6.eq = uint8_t(stop);
+	}
 	// beq cr6,0x88051f70
 	if (ctx.cr6.eq) goto loc_88051F70;
 	// li r11,512
@@ -1873,6 +1877,9 @@ loc_88052088:
 loc_880520E0:
 	// cmpw cr6,r10,r11
 	ctx.cr6.compare<int32_t>(ctx.r10.s32, ctx.r11.s32, ctx.xer);
+	if (const int stop = training_start::ExtraStartStop(base); stop >= 0) {
+		ctx.cr6.eq = uint8_t(stop);
+	}
 	// beq cr6,0x88052110
 	if (ctx.cr6.eq) goto loc_88052110;
 loc_880520E8:

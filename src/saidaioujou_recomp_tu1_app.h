@@ -34,6 +34,12 @@
 #include "settings.h"
 #include "update_checker.h"
 
+// red flash when hit when muteki is on
+namespace muteki_flash {
+void Start(rex::ui::WindowedAppContext& context, rex::ui::ImGuiDrawer* drawer);
+void Stop();
+}
+
 class SaidaioujouRecompTu1App : public rex::ReXApp {
  public:
   using rex::ReXApp::ReXApp;
@@ -173,9 +179,11 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
 
   void OnPostLaunchModule(rex::system::XThread*) override {
     update_checker_.Start(app_context(), imgui_drawer(), user_data_root());
+    muteki_flash::Start(app_context(), imgui_drawer());
   }
 
   void OnShutdown() override {
+    muteki_flash::Stop();
     update_checker_.Stop();
     setup_.Stop();
     error_dialog_.reset();

@@ -32,9 +32,10 @@ bool ReadSavedTrainingArea(uint8_t* base, uint32_t expected_stage, uint32_t& are
 		REX_LOAD_U16(record + training_start::record_stage_offset);
 	if (record_stage != expected_stage) return false;
 
-	area = REX_LOAD_U16(record + training_start::record_areas_offset +
-		record_stage * sizeof(uint16_t));
-	if (record_stage == training_start::stage5_index &&
+	area = training_start::Original(record_stage, family,
+		REX_LOAD_U16(record + training_start::record_areas_offset +
+			record_stage * sizeof(uint16_t)));
+	if (record_stage == training_start::stage5_index && !training_start::IsExtra(area) &&
 		area > training_start::Stage5LastValue(family)) {
 		area = training_start::boss_checkpoint;
 	}
@@ -71,6 +72,67 @@ bool training_start::IsTrainingHiddenBossStart(uint8_t* base) {
 		REX_LOAD_U32(stage_controller_address + controller_checkpoint_offset);
 	return checkpoint == training_start::hibachi_checkpoint ||
 		checkpoint == training_start::inbachi_checkpoint;
+}
+
+// custom checkpoints
+namespace {
+
+constexpr uint32_t kFastForwardFlag = 0x886ACA10;
+constexpr uint32_t kSection = training_start::stage_controller_address + 116;
+constexpr uint32_t kScroll = training_start::stage_controller_address + 204;
+uint32_t hidden_frames = 0;
+
+const training_start::ExtraStart* LoadingExtra(uint8_t* base) {
+	if (REX_LOAD_U32(kFastForwardFlag) == 0 ||
+		REX_LOAD_U32(training_start::mode_address) != training_start::training_mode) {
+		return nullptr;
+	}
+	const uint32_t stage = REX_LOAD_U32(
+		training_start::stage_controller_address + training_start::controller_stage_offset);
+	uint32_t area = 0;
+	if (!ReadSavedTrainingArea(base, stage, area) || !training_start::IsExtra(area)) return nullptr;
+	return training_start::FindExtra(stage, area - training_start::extra_value);
+}
+
+// skipping the midboss also skips the section change it makes, so set the section
+void HandOff(uint8_t* base, const training_start::ExtraStart& start) {
+	if (start.section > int32_t(REX_LOAD_U32(kSection))) {
+		REX_STORE_U32(kSection, uint32_t(start.section));
+	}
+}
+
+bool Done(uint8_t* base, const training_start::ExtraStart& start) {
+	return int32_t(REX_LOAD_U32(kScroll)) >= start.scroll ||
+		int32_t(REX_LOAD_U32(kSection)) >= training_start::extra_boss_section ||
+		hidden_frames > training_start::extra_hidden_frames;
+}
+
+}
+
+uint32_t training_start::ExtraStartFrame(uint8_t* base, uint32_t flag) {
+	const ExtraStart* start = LoadingExtra(base);
+	if (!start) {
+		hidden_frames = 0;
+		return flag;
+	}
+	if (flag == mid_stage_checkpoint) {
+		flag = skip_mid_boss_flag;
+		REX_STORE_U32(kFastForwardFlag, flag);
+	}
+	++hidden_frames;
+	if (!Done(base, *start)) return flag;
+	HandOff(base, *start);
+	REX_STORE_U32(kFastForwardFlag, 0);
+	hidden_frames = 0;
+	return 0;
+}
+
+int training_start::ExtraStartStop(uint8_t* base) {
+	const ExtraStart* start = LoadingExtra(base);
+	if (!start) return -1;
+	if (!Done(base, *start)) return 0;
+	HandOff(base, *start);
+	return 1;
 }
 
 void training_start::SetBossPhaseRequest(uint8_t* base, uint32_t object, uint32_t stage) {

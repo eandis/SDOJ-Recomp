@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "../../src/muteki.h"
 #include "../../src/settings.h"
 #include <atomic>
 
@@ -14110,7 +14111,10 @@ loc_880B9650:
 	// cmpwi cr6,r11,0
 	ctx.cr6.compare<int32_t>(ctx.r11.s32, 0, ctx.xer);
 	// bne cr6,0x880b988c
-	if (!ctx.cr6.eq) goto loc_880B988C;
+	if (!ctx.cr6.eq) {
+		muteki_hit::Check(base, ctx.r8.u32, ctx.r30.u32);
+		goto loc_880B988C;
+	}
 	// lis r11,-30613
 	ctx.r11.s64 = -2006253568;
 	// lwz r11,-13808(r11)

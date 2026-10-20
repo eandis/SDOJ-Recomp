@@ -143,6 +143,28 @@ constexpr uint32_t boss_phase3 = 2;
 constexpr uint32_t boss_phase2_value = 3;
 constexpr uint32_t boss_phase3_value = 4;
 
+struct ExtraStart {
+  uint32_t stage;
+  int32_t scroll;
+  int32_t section;
+};
+
+constexpr uint32_t mid_stage_checkpoint = 1;
+// this deletes midbosses otherwise fucks it up
+constexpr uint32_t skip_mid_boss_flag = 4;
+
+constexpr ExtraStart extra_starts[] = {
+    {stage3_index, 450, 1},
+    {stage4_index, 176, 1},
+    {stage5_index, 216, 3},
+    {stage5_index, 295, 3},
+};
+constexpr uint32_t extra_label_count = 2;
+constexpr uint32_t extra_first_value = 2;
+constexpr uint32_t extra_value = 0x100;
+constexpr int32_t extra_boss_section = 4;
+constexpr uint32_t extra_hidden_frames = 600;
+
 constexpr bool IsArrange(uint32_t mode) {
   return mode == arrange_menu_mode;
 }
@@ -154,6 +176,38 @@ constexpr bool AllowsFinalStarts(uint32_t mode) {
 
 constexpr uint32_t Stage5LastValue(uint32_t mode) {
   return mode == novice_menu_mode ? hibachi_value : inbachi_final_value;
+}
+
+constexpr uint32_t ExtraCount(uint32_t stage, uint32_t mode) {
+  if (!AllowsFinalStarts(mode)) return 0;
+  uint32_t count = 0;
+  for (const ExtraStart& start : extra_starts) {
+    if (start.stage == stage) ++count;
+  }
+  return count;
+}
+
+constexpr const ExtraStart* FindExtra(uint32_t stage, uint32_t index) {
+  for (const ExtraStart& start : extra_starts) {
+    if (start.stage != stage) continue;
+    if (index == 0) return &start;
+    --index;
+  }
+  return nullptr;
+}
+
+
+
+
+constexpr bool IsExtra(uint32_t value) {
+  return value >= extra_value;
+}
+
+constexpr uint32_t Original(uint32_t stage, uint32_t mode, uint32_t value) {
+  const uint32_t count = ExtraCount(stage, mode);
+  if (count == 0 || value < extra_first_value) return value;
+  if (value < extra_first_value + count) return extra_value + (value - extra_first_value);
+  return value - count;
 }
 
 constexpr uint32_t Phase(uint32_t stage, uint32_t value) {
@@ -168,7 +222,26 @@ constexpr uint32_t Phase(uint32_t stage, uint32_t value) {
   return boss_phase_none;
 }
 
-constexpr uint32_t Maximum(uint32_t stage, uint32_t mode, uint32_t stock) {
+constexpr int32_t mid_boss_label_offset = -18;
+constexpr int32_t boss_label_offset = 8;
+constexpr int32_t long_label_offset = -10;
+constexpr int32_t final_label_offset = -4;
+
+constexpr int32_t LabelOffset(uint32_t value, uint32_t mode, uint32_t stage, int32_t vanilla) {
+  if (!AllowsFinalStarts(mode)) return vanilla;
+  const uint32_t original = Original(stage, mode, value);
+  if (IsExtra(original)) return long_label_offset;
+  if (original == 1) return mid_boss_label_offset;
+  if (original == 2) return boss_label_offset;
+  if (stage == stage5_index &&
+      (original == hibachi_final_value || original == inbachi_final_value)) {
+    return final_label_offset;
+  }
+  if (original >= 3) return long_label_offset;
+  return vanilla;
+}
+
+constexpr uint32_t OriginalMaximum(uint32_t stage, uint32_t mode, uint32_t stock) {
   if (!AllowsFinalStarts(mode)) return stock;
   if (stage == stage2_index) {
     return stock > boss_phase2_value ? stock : boss_phase2_value;
@@ -183,9 +256,12 @@ constexpr uint32_t Maximum(uint32_t stage, uint32_t mode, uint32_t stock) {
   return stock;
 }
 
-constexpr uint32_t Checkpoint(
-    uint32_t value, uint32_t mode = default_menu_mode,
-    uint32_t stage = stage5_index) {
+constexpr uint32_t Maximum(uint32_t stage, uint32_t mode, uint32_t stock) {
+  const uint32_t maximum = OriginalMaximum(stage, mode, stock);
+  return maximum >= extra_first_value - 1 ? maximum + ExtraCount(stage, mode) : maximum;
+}
+
+constexpr uint32_t OriginalCheckpoint(uint32_t value, uint32_t mode, uint32_t stage) {
   if (stage == stage5_index && IsArrange(mode)) {
     return value > inbachi_checkpoint ? boss_checkpoint : value;
   }
@@ -204,6 +280,14 @@ constexpr uint32_t Checkpoint(
   return value;
 }
 
+constexpr uint32_t Checkpoint(
+    uint32_t value, uint32_t mode = default_menu_mode,
+    uint32_t stage = stage5_index) {
+  const uint32_t original = Original(stage, mode, value);
+  if (IsExtra(original)) return mid_stage_checkpoint;
+  return OriginalCheckpoint(original, mode, stage);
+}
+
 enum class FinalBossRequest : uint32_t {
   None = 0,
   Hibachi,
@@ -211,7 +295,7 @@ enum class FinalBossRequest : uint32_t {
 };
 
 constexpr uint32_t string_slot = 16;
-constexpr uint32_t string_bytes = string_slot * 4;
+constexpr uint32_t string_bytes = string_slot * (4 + extra_label_count);
 
 extern uint32_t string_storage;
 
@@ -223,6 +307,8 @@ void Initialize(rex::memory::Memory& memory);
 uint32_t LabelAddress(uint32_t value, uint32_t mode = default_menu_mode,
                       uint32_t stage = stage5_index);
 void SetBossPhaseRequest(uint8_t* base, uint32_t object, uint32_t stage);
+uint32_t ExtraStartFrame(uint8_t* base, uint32_t flag);
+int ExtraStartStop(uint8_t* base);
 bool AdvanceBossPhase(uint8_t* base, uint32_t object, uint32_t stage,
                       uint32_t phase_offset);
 void BreakBossPhase(PPCContext& ctx, uint8_t* base, void (*transition)(PPCContext&, uint8_t*),

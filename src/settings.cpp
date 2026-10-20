@@ -743,10 +743,19 @@ void Initialize(rex::memory::Memory& memory) {
                            string_slot, "BOSS P2");
   native_menu::WriteString(base, string_storage + string_slot * 3,
                            string_slot, "BOSS P3");
+  for (uint32_t i = 0; i < extra_label_count; ++i) {
+    native_menu::WriteString(base, string_storage + string_slot * (4 + i), string_slot,
+                             std::string("STAGE ") + char('B' + i));
+  }
 }
 
 uint32_t LabelAddress(uint32_t value, uint32_t mode, uint32_t stage) {
   if (!string_storage || !AllowsFinalStarts(mode)) return 0;
+  value = Original(stage, mode, value);
+  if (IsExtra(value)) {
+    const uint32_t index = value - extra_value;
+    return index < extra_label_count ? string_storage + string_slot * (4 + index) : 0;
+  }
   if (stage == stage5_index && value > Stage5LastValue(mode)) return 0;
   if (stage == stage5_index && value == hibachi_final_value) {
     return string_storage;

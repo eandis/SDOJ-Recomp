@@ -13,6 +13,8 @@ REXCVAR_DEFINE_BOOL(render_patch, true, "SDOJ",
 REXCVAR_DEFINE_BOOL(debug, false, "SDOJ",
                     "enable the original in-game debug menu")
     .debug_only();
+REXCVAR_DEFINE_BOOL(muteki_flash, true, "SDOJ",
+                    "flash the screen red when you get hit with muteki on");
 REXCVAR_DEFINE_BOOL(check_for_updates, true, "SDOJ",
                     "check GitHub for newer releases at startup");
 REXCVAR_DEFINE_COMMAND(check_for_updates_now,

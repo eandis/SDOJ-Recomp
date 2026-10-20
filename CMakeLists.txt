@@ -31,6 +31,7 @@ endif()
 # Sources
 set(SAIDAIOUJOURECOMPTU1_SOURCES
     src/game_setup.cpp
+    src/muteki.cpp
     src/popups.cpp
     src/settings.cpp
     src/update_checker.cpp
