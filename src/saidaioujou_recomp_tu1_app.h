@@ -8,6 +8,7 @@
 #include <rex/logging.h>
 #include <rex/rex_app.h>
 #include <rex/runtime.h>
+#include <rex/system.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 #include <rex/input/input_system.h>
@@ -98,11 +99,16 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
   }
 
   void OnPreSetup(rex::RuntimeConfig& config) override {
-    (void)config;
     rex::cvar::SetFlagByName("mnk_mode", "false");
     rex::cvar::UnregisterFlag("mnk_mode");
     pc_exit::set_app(*this);
     REXCVAR_SET(gpu_allow_invalid_fetch_constants, true);
+    if (config.graphics && XFAILED(config.graphics->SetupPresentation(&app_context()))) {
+      rex::ShowSimpleMessageBox(
+          rex::SimpleMessageBoxType::Error,
+          "The game could not start because your GPU or graphics driver isn't supported.\n\n"
+          "ReXGlue needs D3D12 or Vulkan with full feature support");
+    }
   }
 
   void OnPostSetup() override {
@@ -163,6 +169,7 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
     if (memory) {
       pc_settings::Initialize(*memory);
       training_start::Initialize(*memory);
+      training_difficulty::Initialize(*memory);
     }
     pc_settings::save_config = [context = &window()->app_context(), path = settings_path_] {
       context->CallInUIThread([path] { rex::cvar::SaveConfig(path); });
