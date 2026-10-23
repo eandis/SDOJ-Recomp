@@ -99,7 +99,7 @@ function(rex_resolve_version out_var)
 
     execute_process(
         COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match
-            --match "v[0-9]*.[0-9]*.[0-9]*"
+            --match "v${ARG_FLOOR_MAJOR}.[0-9]*.[0-9]*"
             --exclude "*-*"
         WORKING_DIRECTORY "${ARG_SOURCE_DIR}"
         OUTPUT_VARIABLE describe_exact
@@ -112,7 +112,7 @@ function(rex_resolve_version out_var)
 
     execute_process(
         COMMAND ${GIT_EXECUTABLE} describe --tags --long
-            --match "v[0-9]*.[0-9]*"
+            --match "v${ARG_FLOOR_MAJOR}.[0-9]*"
             --exclude "*-*"
         WORKING_DIRECTORY "${ARG_SOURCE_DIR}"
         OUTPUT_VARIABLE describe_long
