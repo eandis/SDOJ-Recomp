@@ -10,7 +10,20 @@
  */
 
 #include <rex/logging.h>
+#include <rex/platform.h>
 #include <rex/ui/renderdoc_api.h>
+
+#if REX_PLATFORM_WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 namespace rex {
 namespace ui {
@@ -20,9 +33,17 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 
   pRENDERDOC_GetAPI get_api = nullptr;
 
-  // Try to load the RenderDoc library. If RenderDoc is attached, the library
-  // should already be loaded into the process and this will increment the
-  // reference count. If not attached, the load will fail and we return nullptr.
+#if REX_PLATFORM_WIN32
+  if (!GetModuleHandleA(platform::lib_names::kRenderDoc)) {
+    return nullptr;
+  }
+#else
+  void* loaded = dlopen(platform::lib_names::kRenderDoc, RTLD_NOW | RTLD_NOLOAD);
+  if (!loaded) {
+    return nullptr;
+  }
+  dlclose(loaded);
+#endif
   if (!renderdoc_api->library_.Load(platform::lib_names::kRenderDoc)) {
     return nullptr;
   }
