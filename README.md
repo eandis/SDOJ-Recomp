@@ -40,7 +40,7 @@ Slowdown is heavily tweaked compared to Xbox 360. The game is tuned to mostly ma
 
 ### Training mode
 
-You can start from any boss phase, or the final attacks of Hibachi/Inbachi. Their intros are skipped in training mode.
+There are more checkpoints for stages to start from. You can also start from any boss phase, or the final attacks of Hibachi/Inbachi. Their intros are skipped in training mode.
 
 ### Settings
 
