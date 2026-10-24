@@ -51,7 +51,7 @@ else()
 endif()
 
 rexglue_setup_target(saidaioujou_recomp_tu1)
-set(SDOJ_RELEASE_VERSION "v1.51.1" CACHE STRING
+set(SDOJ_RELEASE_VERSION "v1.51.2" CACHE STRING
     "Current release version; empty disables the update checker for development builds")
 if(SDOJ_RELEASE_VERSION AND NOT SDOJ_RELEASE_VERSION MATCHES "^v?[0-9]+\\.[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?$")
     message(FATAL_ERROR "SDOJ_RELEASE_VERSION must be a numeric release version or empty")
