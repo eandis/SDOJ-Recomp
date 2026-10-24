@@ -52561,6 +52561,12 @@ loc_82136894:
 	ctx.r4.s64 = 9;
 	// lwz r7,27004(r30)
 	ctx.r7.u64 = REX_LOAD_U32(ctx.r30.u32 + 27004);
+	{
+		const auto table = training_difficulty::BuildTable(base, ctx.r5.u32, ctx.r6.u32,
+			REX_LOAD_U32(ctx.r30.u32 + training_start::menu_mode_offset));
+		ctx.r5.u64 = table.rows;
+		ctx.r6.u64 = table.count;
+	}
 	// bl 0x8212fd68
 	ctx.lr = 0x821368B4;
 	sub_8212FD68(ctx, base);
@@ -53341,6 +53347,7 @@ loc_82136DB0:
 	// blt cr6,0x82136a00
 	if (ctx.cr6.lt) goto loc_82136A00;
 loc_82136DBC:
+	training_difficulty::LoadRow(base);
 	// addi r1,r1,256
 	ctx.r1.s64 = ctx.r1.s64 + 256;
 	// b 0x8222a9f8
@@ -53352,6 +53359,7 @@ DEFINE_REX_FUNC(sub_82136DC8) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
 	uint32_t ea{};
+	training_difficulty::SaveRow(base, ctx.r4.u32);
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
 	// bl 0x8222a9a8
@@ -54361,6 +54369,7 @@ loc_82137474:
 	// bl 0x82123e20
 	ctx.lr = 0x82137498;
 	sub_82123E20(ctx, base);
+	training_difficulty::Reset(base);
 	// mr r3,r31
 	ctx.r3.u64 = ctx.r31.u64;
 	// bl 0x82136978

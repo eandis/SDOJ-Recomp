@@ -42,6 +42,16 @@ bool ReadSavedTrainingArea(uint8_t* base, uint32_t expected_stage, uint32_t& are
 	return true;
 }
 
+// difficulty dip
+uint32_t Difficulty(uint8_t* base, uint32_t difficulty) {
+	if (REX_LOAD_U32(training_start::mode_address) != training_start::training_mode) return difficulty;
+	const uint32_t mode = REX_LOAD_U32(
+		training_start::frontend_controller_address + training_start::menu_mode_offset);
+	if (!training_difficulty::HasRow(mode)) return difficulty;
+	return training_difficulty::Stored(mode, REX_LOAD_U32(training_start::training_index +
+		training_difficulty::Bank(mode) * training_start::training_bank_bytes));
+}
+
 }
 
 namespace training_start {
@@ -33859,7 +33869,7 @@ DEFINE_REX_FUNC(sub_88080CA0) {
 	// cmpwi cr6,r9,0
 	ctx.cr6.compare<int32_t>(ctx.r9.s32, 0, ctx.xer);
 	// lbz r8,24(r10)
-	ctx.r8.u64 = REX_LOAD_U8(ctx.r10.u32 + 24);
+	ctx.r8.u64 = Difficulty(base, REX_LOAD_U8(ctx.r10.u32 + 24));
 	// beq cr6,0x88080cd4
 	if (ctx.cr6.eq) goto loc_88080CD4;
 	// lis r10,-30689
@@ -45519,7 +45529,7 @@ loc_88085ECC:
 	// stw r10,64(r11)
 	REX_STORE_U32(ctx.r11.u32 + 64, ctx.r10.u32);
 	// lbz r11,24(r9)
-	ctx.r11.u64 = REX_LOAD_U8(ctx.r9.u32 + 24);
+	ctx.r11.u64 = Difficulty(base, REX_LOAD_U8(ctx.r9.u32 + 24));
 	// lwz r10,24(r23)
 	ctx.r10.u64 = REX_LOAD_U32(ctx.r23.u32 + 24);
 	// lwz r8,4(r24)

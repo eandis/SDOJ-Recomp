@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include <rex/cvar.h>
+
 struct PPCContext;
 
 namespace rex::input {
@@ -314,6 +316,58 @@ bool AdvanceBossPhase(uint8_t* base, uint32_t object, uint32_t stage,
                       uint32_t phase_offset);
 void BreakBossPhase(PPCContext& ctx, uint8_t* base, void (*transition)(PPCContext&, uint8_t*),
                     uint32_t boss, uint32_t damage_record);
+
+}
+
+namespace training_difficulty {
+
+// difficulty dip
+constexpr uint32_t row_id = 0x1200;
+constexpr uint32_t hit_id = 44;
+constexpr uint32_t score_fixed_id = 45;
+constexpr uint32_t normal = 1;
+constexpr uint32_t value_count = 4;
+constexpr uint32_t bank_count = 4;
+constexpr uint32_t preset_count = training_start::training_record_count;
+constexpr uint32_t row_capacity = 24;
+constexpr uint32_t row_flags = 2;
+constexpr uint32_t minimum_offset = 12;
+constexpr uint32_t maximum_offset = 16;
+constexpr uint32_t string_slot = 16;
+constexpr float value_x = 512.0f;
+constexpr int32_t value_offsets[value_count] = {8, -4, 8, -24};
+
+inline std::string Values() {
+  std::string text = rex::cvar::GetFlagByName("training_difficulty");
+  text.resize(bank_count * preset_count, char('0' + normal));
+  for (char& c : text) {
+    if (c < '0' || c >= char('0' + value_count)) c = char('0' + normal);
+  }
+  return text;
+}
+
+// only the modes that get the row
+constexpr bool HasRow(uint32_t mode) {
+  return training_start::AllowsFinalStarts(mode);
+}
+
+constexpr uint32_t Bank(uint32_t mode) {
+  return mode - training_start::arcade_hd_menu_mode;
+}
+
+// inline so the game module can read it at training start
+inline uint32_t Stored(uint32_t mode, uint32_t preset) {
+  if (!HasRow(mode) || preset >= preset_count) return normal;
+  return uint32_t(Values()[Bank(mode) * preset_count + preset] - '0');
+}
+
+void Initialize(rex::memory::Memory& memory);
+native_menu::Table BuildTable(uint8_t* base, uint32_t source, uint32_t count, uint32_t mode);
+void LoadRow(uint8_t* base);
+void SaveRow(uint8_t* base, uint32_t preset);
+void Reset(uint8_t* base);
+uint32_t LabelAddress();
+uint32_t ValueAddress(uint32_t value);
 
 }
 

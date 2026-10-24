@@ -33604,6 +33604,31 @@ loc_8214F01C:
 	ctx.lr = 0x8214F044;
 	sub_8211E780(ctx, base);
 loc_8214F044:
+	if (native_menu::EffectiveRowId(base, ctx.r27.u32) == training_difficulty::row_id &&
+	    training_difficulty::LabelAddress()) {
+		const uint32_t value = ctx.r26.u32 < training_difficulty::value_count
+			? ctx.r26.u32 : training_difficulty::normal;
+		REX_STORE_U32(ctx.r1.u32 + 80, ctx.r28.u32);
+		ctx.r8.s64 = 0;
+		ctx.r7.s64 = ctx.r1.s64 + 80;
+		ctx.r3.u64 = training_difficulty::LabelAddress();
+		ctx.fpscr.disableFlushMode();
+		ctx.f3.f64 = ctx.f30.f64;
+		ctx.f2.f64 = ctx.f31.f64;
+		ctx.f1.f64 = ctx.f29.f64;
+		ctx.lr = 0x8214F044;
+		sub_8211E780(ctx, base);
+		REX_STORE_U32(ctx.r1.u32 + 80, ctx.r28.u32);
+		ctx.r8.s64 = 0;
+		ctx.r7.s64 = ctx.r1.s64 + 80;
+		ctx.r3.u64 = training_difficulty::ValueAddress(value);
+		ctx.fpscr.disableFlushMode();
+		ctx.f3.f64 = ctx.f30.f64;
+		ctx.f2.f64 = ctx.f31.f64;
+		ctx.f1.f64 = training_difficulty::value_x + training_difficulty::value_offsets[value];
+		ctx.lr = 0x8214F044;
+		sub_8211E780(ctx, base);
+	}
 	// lwz r11,120(r1)
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r1.u32 + 120);
 	// cmplw cr6,r19,r11

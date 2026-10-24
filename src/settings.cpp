@@ -771,6 +771,115 @@ uint32_t LabelAddress(uint32_t value, uint32_t mode, uint32_t stage) {
 
 }
 
+REXCVAR_DEFINE_STRING(training_difficulty, "11111111111111111111", "SDOJ",
+                      "training difficulty per mode and preset, set in the training menu")
+    .debug_only();
+
+namespace training_difficulty {
+
+namespace {
+
+constexpr const char* labels[value_count + 1] = {"DIFFICULTY", "EASY", "NORMAL", "HARD",
+                                                 "VERY HARD"};
+
+uint32_t storage = 0;
+uint32_t row = 0;
+
+uint32_t Mode(uint8_t* base) {
+  return REX_LOAD_U32(training_start::frontend_controller_address +
+                      training_start::menu_mode_offset);
+}
+
+uint32_t Preset(uint8_t* base, uint32_t mode) {
+  if (!HasRow(mode)) return preset_count;
+  return REX_LOAD_U32(training_start::training_index +
+                      Bank(mode) * training_start::training_bank_bytes);
+}
+
+void Store(uint32_t mode, uint32_t preset, uint32_t value) {
+  if (!HasRow(mode) || preset >= preset_count || value >= value_count) return;
+  std::string text = Values();
+  const char c = char('0' + value);
+  const uint32_t index = Bank(mode) * preset_count + preset;
+  if (text[index] == c) return;
+  text[index] = c;
+  rex::cvar::SetFlagByName("training_difficulty", text);
+  if (pc_settings::save_config) pc_settings::save_config();
+}
+
+}
+
+void Initialize(rex::memory::Memory& memory) {
+  if (!storage) {
+    storage = memory.SystemHeapAlloc(row_capacity * native_menu::row_size +
+                                     (value_count + 1) * string_slot);
+  }
+  if (!storage) return;
+  auto* base = memory.virtual_membase();
+  for (uint32_t i = 0; i <= value_count; ++i) {
+    native_menu::WriteString(base, storage + row_capacity * native_menu::row_size +
+                                       i * string_slot,
+                             string_slot, labels[i]);
+  }
+}
+
+native_menu::Table BuildTable(uint8_t* base, uint32_t source, uint32_t count, uint32_t mode) {
+  row = 0;
+  if (!base || !storage || !source || count >= row_capacity || !HasRow(mode)) {
+    return {source, count};
+  }
+
+  // goes after score fixed
+  uint32_t insert = 0;
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t id = REX_LOAD_U32(source + i * native_menu::row_size + native_menu::id_offset);
+    if (id == hit_id || id == score_fixed_id) insert = i + 1;
+  }
+  if (insert == 0) return {source, count};
+
+  const uint32_t table = storage;
+  const uint32_t size = native_menu::row_size;
+  std::memcpy(base + table, base + source, insert * size);
+  std::memcpy(base + table + (insert + 1) * size, base + source + insert * size,
+              (count - insert) * size);
+
+  row = table + insert * size;
+  std::memset(base + row, 0, size);
+  REX_STORE_U32(row, row_flags);
+  REX_STORE_U32(row + native_menu::id_offset, row_id);
+  REX_STORE_U32(row + minimum_offset, std::bit_cast<uint32_t>(0.0f));
+  REX_STORE_U32(row + maximum_offset, std::bit_cast<uint32_t>(float(value_count - 1)));
+  return {table, count + 1};
+}
+
+void LoadRow(uint8_t* base) {
+  if (!row) return;
+  const uint32_t mode = Mode(base);
+  const float value = float(Stored(mode, Preset(base, mode)));
+  REX_STORE_U32(row + native_menu::value_offset, std::bit_cast<uint32_t>(value));
+}
+
+void SaveRow(uint8_t* base, uint32_t preset) {
+  if (!row) return;
+  const float value = std::bit_cast<float>(REX_LOAD_U32(row + native_menu::value_offset));
+  Store(Mode(base), preset, uint32_t(std::clamp(int(value), 0, int(value_count) - 1)));
+}
+
+void Reset(uint8_t* base) {
+  const uint32_t mode = Mode(base);
+  Store(mode, Preset(base, mode), normal);
+}
+
+uint32_t LabelAddress() {
+  return storage ? storage + row_capacity * native_menu::row_size : 0;
+}
+
+uint32_t ValueAddress(uint32_t value) {
+  return storage ? LabelAddress() + (std::min(value, value_count - 1) + 1) * string_slot : 0;
+}
+
+}
+
 namespace keyboard_menu {
 
 bool active = false;
