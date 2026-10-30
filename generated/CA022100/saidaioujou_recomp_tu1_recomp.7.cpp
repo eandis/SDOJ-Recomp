@@ -14,6 +14,8 @@ namespace {
 constexpr uint32_t kPlayer1StateBase = 0x88611630;
 constexpr uint32_t kPlayerStateOffset = 116;
 constexpr uint32_t kWeaponModeOffset = 189;
+constexpr uint32_t kPlayerControlOffset = 112;
+constexpr uint32_t kHyperActiveOffset = 916;
 constexpr double kSayaShotScore = 1.0;
 constexpr double kSayaFiringRenderWork = 2900.0;
 constexpr double kSayaShotRenderWork = 120.0;
@@ -37733,7 +37735,8 @@ struct SlowdownInputs {
 	double playerShotWork;              // player shot/laser processing work, only used in stage 5 section 5
 	bool normalShotActive;              // whether a player is firing a normal shot.
 	bool sayaNormalShotActive;          // saya normal shot gets less synthetic slowdown.
-	uint32_t sayaShots;                 // player 1's saya shots alive this frame.
+	bool hyperActive;                   // hyper 
+	uint32_t sayaShots;                // player 1's saya shots alive this frame.
 	uint32_t bossScript;                // latest boss script callback
 };
 
@@ -37967,8 +37970,8 @@ static double calculate_slowdown_score(const SlowdownInputs& s) {
 
 			// jetbachi garbage
 			if (s.section == 5) {
-				if (s.bossScript == 0x8812A448) {
-					score = std::fma(s.renderWork, 0.0000805f, score); // extra slowdown for jetbachi opener.
+				if (s.bossScript == 0x8812A448 && s.normalShotActive && !s.hyperActive) {
+					score += 1.15; // extra slowdown for jetbachi opener.
 				} else if (s.bossScript == 0x881294A0) {
 					score = -std::fma(s.renderWork, 0.00006f, -score); // 3rd attack
 				} else if (s.bossScript == 0x8812AE80 || s.bossScript == 0x88129208) { 
@@ -38451,6 +38454,9 @@ loc_88123FE8:
 		}
 		readable_inputs.sayaNormalShotActive = sayaShots >= kSayaShotThreshold;
 		readable_inputs.sayaShots = sayaShots;
+		const uint32_t control = REX_LOAD_U32(kPlayer1StateBase + kPlayerControlOffset);
+		readable_inputs.hyperActive =
+			control != 0 && REX_LOAD_U32(control + kHyperActiveOffset) != 0;
 	}
 	// lwz r3,-4(r31)
 	ctx.r3.u64 = REX_LOAD_U32(ctx.r31.u32 + -4);
