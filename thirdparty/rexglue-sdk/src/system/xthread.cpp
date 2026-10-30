@@ -513,6 +513,12 @@ X_STATUS XThread::Exit(int exit_code) {
 
   // TODO(tomc): do we need thread notifications (related to processor thread management)?
 
+  // The guest stack belongs to the thread's execution lifetime, not the handle
+  // lifetime. Games can keep thread handles after exit; holding the stack until
+  // object destruction leaks the reserved stack range and eventually makes
+  // ExCreateThread fail even though the old threads are no longer running.
+  FreeStack();
+
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_xthread_tls_ = nullptr;
   PROFILE_THREAD_EXIT();
@@ -540,10 +546,12 @@ X_STATUS XThread::Terminate(int exit_code) {
     // Same lifetime rule as Exit(): don't allow ReleaseHandle() to destroy
     // the thread object before Thread::Exit() reaches pthread_exit().
     auto self = retain_object(this);
+    FreeStack();
     ReleaseHandle();
     rex::thread::Thread::Exit(exit_code);
   } else {
     thread_->Terminate(exit_code);
+    FreeStack();
     ReleaseHandle();
   }
 
