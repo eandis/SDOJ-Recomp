@@ -1,5 +1,11 @@
 #include "saidaioujou_recomp_tu1_init.h"
 
+#include <atomic>
+
+// sub_8218EC38 frees load requests the loader (sub_82190B88) may still be using
+// unregister them first
+static std::atomic<uint32_t> loader_manager{0};
+
 DEFINE_REX_FUNC(sub_821817B8) {
 	REX_FUNC_PROLOGUE();
 	PPCRegister temp{};
@@ -31936,6 +31942,20 @@ loc_8218EC1C:
 
 DEFINE_REX_FUNC(sub_8218EC38) {
 	REX_FUNC_PROLOGUE();
+	if (const uint32_t loader = loader_manager.load(std::memory_order_acquire)) {
+		const uint32_t group = ctx.r3.u32;
+		const uint32_t count = REX_LOAD_U32(group + 4);
+		const uint32_t requests = REX_LOAD_U32(group + 40);
+		if (requests && count) {
+			const PPCContext saved = ctx;
+			for (uint32_t i = 0; i < count; ++i) {
+				ctx.r3.u64 = loader;
+				ctx.r4.u64 = requests + i * 72;  // requests are 72 bytes
+				sub_82190AD0(ctx, base);
+			}
+			ctx = saved;
+		}
+	}
 	uint32_t ea{};
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
@@ -36590,6 +36610,7 @@ DEFINE_REX_FUNC(sub_82190B88) {
 	ctx.r11.u64 = REX_LOAD_U32(ctx.r21.u32 + 0);
 	// mr r31,r3
 	ctx.r31.u64 = ctx.r3.u64;
+	loader_manager.store(ctx.r31.u32, std::memory_order_release);
 	// mr r3,r21
 	ctx.r3.u64 = ctx.r21.u64;
 	// lwz r11,20(r11)
