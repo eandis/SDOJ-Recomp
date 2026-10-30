@@ -17,6 +17,7 @@
 #include <rex/filesystem.h>
 #include <rex/logging/sink.h>
 #include <rex/logging.h>
+#include <rex/platform.h>
 #include <rex/ui/overlay/console_overlay.h>
 #include <rex/ui/overlay/debug_overlay.h>
 #include <rex/ui/overlay/settings_overlay.h>
@@ -212,6 +213,10 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
     auto* input_sys = static_cast<rex::input::InputSystem*>(runtime_->input_system());
     if (input_sys) {
       input_sys->SetActiveCallback([this]() {
+#if REX_PLATFORM_WIN32
+        if (window_ && !window_->HasFocus())
+          return false;
+#endif
         if (settings_overlay_)
           return false;
         if (console_overlay_)
@@ -427,6 +432,18 @@ void ReXApp::ShutdownFromUIThread() {
     runtime_->kernel_state()->TerminateTitle();
   }
   app_context().QuitFromUIThread();
+}
+
+void ReXApp::OnGotFocus(ui::UISetupEvent&) {
+  if (runtime_ && runtime_->input_system()) {
+    static_cast<rex::input::InputSystem*>(runtime_->input_system())->RefreshActiveState();
+  }
+}
+
+void ReXApp::OnLostFocus(ui::UISetupEvent&) {
+  if (runtime_ && runtime_->input_system()) {
+    static_cast<rex::input::InputSystem*>(runtime_->input_system())->RefreshActiveState();
+  }
 }
 
 void ReXApp::OnClosing(ui::UIEvent& e) {

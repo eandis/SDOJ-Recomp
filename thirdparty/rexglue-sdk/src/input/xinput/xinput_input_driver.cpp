@@ -10,6 +10,7 @@
  */
 
 #include <array>
+#include <cstring>
 #include <filesystem>
 
 #include <rex/assert.h>
@@ -168,6 +169,11 @@ X_RESULT XinputInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_sta
   out_state->gamepad.thumb_ly = native_state.state.Gamepad.sThumbLY;
   out_state->gamepad.thumb_rx = native_state.state.Gamepad.sThumbRX;
   out_state->gamepad.thumb_ry = native_state.state.Gamepad.sThumbRY;
+
+  if (!is_active()) {
+    std::memset(&out_state->gamepad, 0, sizeof(out_state->gamepad));
+    out_state->packet_number = uint32_t(out_state->packet_number) + 1;
+  }
 
   return result;
 }

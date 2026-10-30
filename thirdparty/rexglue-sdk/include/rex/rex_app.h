@@ -206,6 +206,8 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
 
   // WindowListener overrides
   void OnClosing(ui::UIEvent& e) override;
+  void OnGotFocus(ui::UISetupEvent& e) override;
+  void OnLostFocus(ui::UISetupEvent& e) override;
 
   // WindowInputListener overrides
   void OnKeyDown(ui::KeyEvent& e) override;
