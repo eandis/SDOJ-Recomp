@@ -10,7 +10,9 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cstring>
+#include <mutex>
 #include <utility>
 
 #include <fmt/format.h>
@@ -23,6 +25,7 @@
 #include <rex/stream.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/mmio_handler.h>
+#include <rex/system/thread_state.h>
 #include <rex/system/xmemory.h>
 #include <rex/thread.h>
 
@@ -1613,6 +1616,68 @@ void PhysicalHeap::Initialize(memory::Memory* memory, uint8_t* membase, HeapType
   system_page_flags_.resize((system_page_count_ + 63) / 64);
 }
 
+namespace {
+
+// recent physical allocs and releases, printed when a release is refused
+struct PhysicalHistoryEntry {
+  uint32_t address;
+  uint32_t physical;
+  uint32_t size;
+  uint32_t thread_id;
+  uint32_t lr;
+  bool alloc;
+};
+std::mutex physical_history_mutex;
+std::array<PhysicalHistoryEntry, 1024> physical_history = {};
+size_t physical_history_next = 0;
+
+void NotePhysicalHistory(bool alloc, uint32_t address, uint32_t physical, uint32_t size) {
+  auto* ts = rex::runtime::ThreadState::Get();
+  std::lock_guard<std::mutex> lock(physical_history_mutex);
+  physical_history[physical_history_next] = {address,
+                                             physical,
+                                             size,
+                                             ts ? uint32_t(ts->thread_id()) : 0,
+                                             ts ? uint32_t(ts->context()->lr) : 0,
+                                             alloc};
+  physical_history_next = (physical_history_next + 1) % physical_history.size();
+}
+
+// return addresses from the game's stack, to see who called
+std::string GameCallers(memory::Memory* memory, uint8_t* membase) {
+  auto* ts = rex::runtime::ThreadState::Get();
+  if (!ts) {
+    return {};
+  }
+  auto read32 = [&](uint32_t address, uint32_t& value) {
+    if (address < 0x70000000 || address >= 0x80000000 || (address & 3)) {
+      return false;
+    }
+    uint32_t protect = 0;
+    auto* heap = memory->LookupHeap(address);
+    if (!heap || !heap->QueryProtect(address, &protect) ||
+        !(protect & memory::kMemoryProtectRead)) {
+      return false;
+    }
+    value = memory::load_and_swap<uint32_t>(membase + address);
+    return true;
+  };
+  // saved lr is 8 bytes below each back chain entry
+  std::string callers;
+  uint32_t sp = ts->context()->r1.u32;
+  for (int i = 0; i < 8; ++i) {
+    uint32_t next = 0, saved_lr = 0;
+    if (!read32(sp, next) || next <= sp || !read32(next - 8, saved_lr)) {
+      break;
+    }
+    callers += fmt::format(" {:08X}", saved_lr);
+    sp = next;
+  }
+  return callers;
+}
+
+}  // namespace
+
 bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type,
                          uint32_t protect, bool top_down, uint32_t* out_address) {
   *out_address = 0;
@@ -1646,6 +1711,7 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
     return false;
   }
   *out_address = address;
+  NotePhysicalHistory(true, address, GetPhysicalAddress(address), size);
   return true;
 }
 
@@ -1676,6 +1742,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
     return false;
   }
 
+  NotePhysicalHistory(true, address, parent_base_address, size);
   return true;
 }
 
@@ -1711,6 +1778,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
     return false;
   }
   *out_address = address;
+  NotePhysicalHistory(true, address, GetPhysicalAddress(address), size);
   return true;
 }
 
@@ -1737,6 +1805,40 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
 
+  // hold the lock for the whole release so an alloc can't take this address in between
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
+
+  // refuse before freeing anything if this address isn't an allocation start in this view
+  const uint32_t page_number = (base_address - heap_base_) >> page_size_shift_;
+  if (page_number >= page_table_.size()) {
+    REXSYS_ERROR("PhysicalHeap::Release failed because address is outside the heap");
+    return false;
+  }
+  const auto& page_entry = page_table_[page_number];
+  if (page_entry.state == 0 || page_entry.base_address != page_number) {
+    auto* ts = rex::runtime::ThreadState::Get();
+    const uint32_t physical = GetPhysicalAddress(base_address);
+    REXSYS_ERROR(
+        "PhysicalHeap::Release failed because address is not a region start: {:08X} "
+        "(physical {:08X}) page state {} region {:08X}, thread {} lr {:08X} callers{}",
+        base_address, physical, uint32_t(page_entry.state),
+        heap_base_ + (uint32_t(page_entry.base_address) << page_size_shift_),
+        ts ? uint32_t(ts->thread_id()) : 0, ts ? uint32_t(ts->context()->lr) : 0,
+        GameCallers(memory_, membase_));
+    std::lock_guard<std::mutex> lock(physical_history_mutex);
+    for (size_t i = 1; i <= physical_history.size(); ++i) {
+      const auto& entry = physical_history[(physical_history_next + physical_history.size() - i) %
+                                           physical_history.size()];
+      if (entry.size && physical >= entry.physical && physical < entry.physical + entry.size) {
+        REXSYS_ERROR("  earlier {} {:08X} size {:X} thread {} lr {:08X}",
+                     entry.alloc ? "alloc" : "release", entry.address, entry.size,
+                     entry.thread_id, entry.lr);
+      }
+    }
+    return false;
+  }
+  const uint32_t release_size = uint32_t(page_entry.region_page_count) << page_size_shift_;
+
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
     REXSYS_ERROR("PhysicalHeap::Release failed due to parent heap failure");
@@ -1756,6 +1858,7 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     TriggerCallbacks(std::move(global_lock), base_address, region_size, true, true);
   }
 
+  NotePhysicalHistory(false, base_address, parent_base_address, release_size);
   return BaseHeap::Release(base_address, out_region_size);
 }
 
