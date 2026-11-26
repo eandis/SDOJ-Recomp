@@ -664,5 +664,10 @@ if(WIN32)
     target_link_libraries(libavcodec PRIVATE bcrypt)
 endif()
 
-# IDE folder organization
-set_target_properties(libavutil libavcodec PROPERTIES FOLDER "FFmpeg")
+# Hidden visibility is required on aarch64. The NEON .S files use ADRP/ADD
+# PC-relative addressing (movrel) for symbols like ff_cos_*, which the linker
+# only accepts against locally bound symbols when emitting a shared object.
+set_target_properties(libavutil libavcodec PROPERTIES
+    C_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    FOLDER "FFmpeg")
