@@ -8,7 +8,15 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 300
 
     steps:
@@ -29,34 +37,34 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-linux-${{ github.sha }}
-          restore-keys: ccache-linux-
+          key: ccache-linux-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: ccache-linux-${{ matrix.arch }}-
 
       - name: Configure
         run: |
           ccache --set-config=max_size=5G
-          cmake --preset linux-amd64-release \
+          cmake --preset linux-${{ matrix.arch }}-release \
             -DCMAKE_C_COMPILER=clang-20 \
             -DCMAKE_CXX_COMPILER=clang++-20 \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
-        run: cmake --build --preset linux-amd64-release --parallel 3
+        run: cmake --build --preset linux-${{ matrix.arch }}-release --parallel 3
 
       - name: Package
         run: |
-          out=out/build/linux-amd64-release
-          mkdir -p package/sdoj-recomp-linux-amd64
-          cp -L "$out/DoDonPachi SaiDaiOuJou" $out/*.so package/sdoj-recomp-linux-amd64/
-          cp -r $out/tools package/sdoj-recomp-linux-amd64/
-          curl -sSfL -o package/sdoj-recomp-linux-amd64/gamecontrollerdb.txt \
+          out=out/build/linux-${{ matrix.arch }}-release
+          mkdir -p package/sdoj-recomp-linux-${{ matrix.arch }}
+          cp -L "$out/DoDonPachi SaiDaiOuJou" $out/*.so package/sdoj-recomp-linux-${{ matrix.arch }}/
+          cp -r $out/tools package/sdoj-recomp-linux-${{ matrix.arch }}/
+          curl -sSfL -o package/sdoj-recomp-linux-${{ matrix.arch }}/gamecontrollerdb.txt \
             https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt
-          tar -C package -czf sdoj-recomp-linux-amd64.tar.gz sdoj-recomp-linux-amd64
+          tar -C package -czf sdoj-recomp-linux-${{ matrix.arch }}.tar.gz sdoj-recomp-linux-${{ matrix.arch }}
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: sdoj-recomp-linux-amd64
-          path: sdoj-recomp-linux-amd64.tar.gz
+          name: sdoj-recomp-linux-${{ matrix.arch }}
+          path: sdoj-recomp-linux-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
