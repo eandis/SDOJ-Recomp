@@ -34,3 +34,41 @@ name = "sub_8224D1A8"
 
 [functions."0x821B03F8"]
 name = "sub_821B03F8"
+
+# Optional community provider at the TU 1.01 Xbox API wrappers.
+
+[[midasm_hook]]
+address = 0x8221CB20
+name = "CommunityDownloadReplay"
+registers = ["r3", "r4", "r5", "r6", "r7", "r8", "r9"]
+return_on_true = true
+
+[[midasm_hook]]
+address = 0x8221CE00
+name = "CommunityUploadReplay"
+registers = ["r3", "r4", "r5", "r6", "r7"]
+return_on_true = true
+
+[[midasm_hook]]
+address = 0x8221D090
+name = "CommunityEstimateRank"
+registers = ["r3", "r4", "r5", "r6", "r7"]
+return_on_true = true
+
+[[midasm_hook]]
+address = 0x8221D270
+name = "CommunityLocalReplayPath"
+registers = ["r3", "r4", "r5", "r6", "r7", "r8", "r9"]
+return_on_true = true
+
+[[midasm_hook]]
+address = 0x8221D308
+name = "CommunityRemoteReplayPath"
+registers = ["r3", "r4", "r5", "r6", "r7", "r8", "r9"]
+return_on_true = true
+
+[[midasm_hook]]
+address = 0x822278C0
+name = "CommunityHandleLegacyAuth"
+registers = ["r3"]
+return_on_true = true

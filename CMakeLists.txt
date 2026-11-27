@@ -30,6 +30,16 @@ endif()
 
 # Sources
 set(SAIDAIOUJOURECOMPTU1_SOURCES
+    src/community/guest_service.cpp
+    src/community/imports.cpp
+    src/community/hooks.cpp
+    src/community/session.cpp
+    src/community/sdoj_service.cpp
+    src/community/native_service.cpp
+    src/community/http_client.cpp
+    src/community/replay_encoding.cpp
+    src/community/replay_format.cpp
+    src/community/common/nickname.cpp
     src/game_setup.cpp
     src/muteki.cpp
     src/popups.cpp
@@ -51,6 +61,16 @@ else()
 endif()
 
 rexglue_setup_target(saidaioujou_recomp_tu1)
+# Bind the main XEX's direct calls and indirect import table to the same adapters.
+# Only generated SDOJ sources see these names; the adapters call the stock imports.
+foreach(import IN ITEMS
+    XamUserGetSigninState XamUserGetSigninInfo XamUserCheckPrivilege XamNotifyCreateListener
+    NetDll_XNetQosServiceLookup XamUserCreateStatsEnumerator XamEnumerate
+    XMsgStartIORequest XMsgInProcessCall XMsgCancelIORequest XamShowGamerCardUIForXUID)
+    set_property(SOURCE ${REXGLUE_ENTRYPOINT_GENERATED_SOURCES} APPEND PROPERTY
+        COMPILE_DEFINITIONS "__imp__${import}=Sdoj_${import}")
+endforeach()
+target_link_libraries(saidaioujou_recomp_tu1 PRIVATE libavutil)
 set(SDOJ_RELEASE_VERSION "v1.51.4" CACHE STRING
     "Current release version; empty disables the update checker for development builds")
 if(SDOJ_RELEASE_VERSION AND NOT SDOJ_RELEASE_VERSION MATCHES "^v?[0-9]+\\.[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?$")
@@ -59,6 +79,7 @@ endif()
 target_compile_definitions(saidaioujou_recomp_tu1 PRIVATE
     SDOJ_RELEASE_VERSION="${SDOJ_RELEASE_VERSION}")
 target_include_directories(saidaioujou_recomp_tu1 PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${REXSDK_DIR}/thirdparty/inja/third_party/include")
 set_target_properties(saidaioujou_recomp_tu1 PROPERTIES
     OUTPUT_NAME "DoDonPachi SaiDaiOuJou"
@@ -151,11 +172,13 @@ if(WIN32)
     endforeach()
 
     target_link_options(saidaioujou_recomp_tu1_CA022100 PRIVATE "LINKER:/MAP")
-    target_link_libraries(saidaioujou_recomp_tu1 PRIVATE user32 imm32 winhttp shell32)
+    target_sources(saidaioujou_recomp_tu1 PRIVATE src/community/http_winhttp.cpp)
+    target_link_libraries(saidaioujou_recomp_tu1 PRIVATE user32 imm32 winhttp shell32 normaliz)
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
     find_package(CURL REQUIRED)
+    target_sources(saidaioujou_recomp_tu1 PRIVATE src/community/http_curl.cpp)
     target_include_directories(saidaioujou_recomp_tu1 PRIVATE ${GTK3_INCLUDE_DIRS})
     target_link_libraries(saidaioujou_recomp_tu1 PRIVATE ${GTK3_LIBRARIES} CURL::libcurl)
 

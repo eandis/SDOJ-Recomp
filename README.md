@@ -46,6 +46,10 @@ There are more checkpoints for stages to start from. You can also start from any
 
 VSync, fullscreen and the input/render patches are in the game's General screen settings, and keyboard controls can be remapped in the Keyboard screen. Press F4 in game for the rest of the ReXGlue settings. Everything is saved in `saidaioujou_recomp_tu1.toml`.
 
+### Community leaderboards
+
+The personal leaderboards use the EVAC-PC-LABEL community server by default. Scores and replays you submit are shared under your player name. In F4 under SDOJ, you can turn this off or change your player name or server address. Press Enter after editing a text field, then choose **Save to config** and restart the game.
+
 ### Debug
 
 Launching the game with `--debug` unlocks the game's original hidden debug menu. It only applies to that launch. Some of its features are:

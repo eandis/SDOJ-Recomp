@@ -1,4 +1,5 @@
 #include "saidaioujou_recomp_tu1_init.h"
+#include "community/hooks.h"
 
 DEFINE_REX_FUNC(sub_8221ACE8) {
 	REX_FUNC_PROLOGUE();
@@ -4544,6 +4545,7 @@ loc_8221CB14:
 
 DEFINE_REX_FUNC(sub_8221CB20) {
 	REX_FUNC_PROLOGUE();
+	if (CommunityDownloadReplay(ctx.r3, ctx.r4, ctx.r5, ctx.r6, ctx.r7, ctx.r8, ctx.r9)) return;
 	PPCRegister temp{};
 	uint32_t ea{};
 	// mflr r12
@@ -4951,6 +4953,7 @@ loc_8221CDF0:
 
 DEFINE_REX_FUNC(sub_8221CE00) {
 	REX_FUNC_PROLOGUE();
+	if (CommunityUploadReplay(ctx.r3, ctx.r4, ctx.r5, ctx.r6, ctx.r7)) return;
 	PPCRegister temp{};
 	uint32_t ea{};
 	// mflr r12
@@ -5318,6 +5321,7 @@ loc_8221D084:
 
 DEFINE_REX_FUNC(sub_8221D090) {
 	REX_FUNC_PROLOGUE();
+	if (CommunityEstimateRank(ctx.r3, ctx.r4, ctx.r5, ctx.r6, ctx.r7)) return;
 	PPCRegister temp{};
 	uint32_t ea{};
 	// mflr r12
@@ -5588,6 +5592,7 @@ loc_8221D260:
 
 DEFINE_REX_FUNC(sub_8221D270) {
 	REX_FUNC_PROLOGUE();
+	if (CommunityLocalReplayPath(ctx.r3, ctx.r4, ctx.r5, ctx.r6, ctx.r7, ctx.r8, ctx.r9)) return;
 	uint32_t ea{};
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
@@ -5675,6 +5680,7 @@ loc_8221D2F8:
 
 DEFINE_REX_FUNC(sub_8221D308) {
 	REX_FUNC_PROLOGUE();
+	if (CommunityRemoteReplayPath(ctx.r3, ctx.r4, ctx.r5, ctx.r6, ctx.r7, ctx.r8, ctx.r9)) return;
 	uint32_t ea{};
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;
@@ -31652,6 +31658,7 @@ loc_822278B0:
 
 DEFINE_REX_FUNC(sub_822278C0) {
 	REX_FUNC_PROLOGUE();
+	if (CommunityHandleLegacyAuth(ctx.r3)) return;
 	uint32_t ea{};
 	// mflr r12
 	ctx.r12.u64 = ctx.lr;

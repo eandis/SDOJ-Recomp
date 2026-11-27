@@ -29,6 +29,8 @@
 #include <windows.h>
 #endif
 
+#include "community/session.h"
+
 #include "exitgame.h"
 #include "game_setup.h"
 #include "popups.h"
@@ -165,6 +167,7 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
   }
 
   void OnPreLaunchModule() override {
+    community_.Start();
     auto memory = runtime()->memory();
     if (memory) {
       pc_settings::Initialize(*memory);
@@ -190,6 +193,7 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
   }
 
   void OnShutdown() override {
+    if (runtime()) community_.Stop(runtime()->kernel_state());
     muteki_flash::Stop();
     update_checker_.Stop();
     setup_.Stop();
@@ -198,6 +202,7 @@ class SaidaioujouRecompTu1App : public rex::ReXApp {
   }
 
  private:
+  sdoj::CommunitySession community_;
   bool ShowStartupError(const std::string& message) {
     REXLOG_ERROR("Startup failed: {}", message);
     if (!imgui_drawer()) {
